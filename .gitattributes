@@ -1,0 +1,3 @@
+# Design mockups are reference material, not part of the product.
+# Keep them out of the repository language statistics.
+mockups/** linguist-documentation
