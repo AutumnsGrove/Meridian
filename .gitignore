@@ -6,9 +6,13 @@
 .env.*
 config.yaml
 *.local.yaml
+# ...but test fixtures and the committed template are real files
+!testdata/**/config.yaml
+!.env.example
 
 # Go
 /meridian
+/meridian-host
 /dist/
 /data/
 
@@ -20,10 +24,8 @@ web/.vite/
 pnpm-lock.yaml.bak
 
 # Runtime state that must never be committed (see docs/ARCHITECTURE.md)
-control/queue/
-control/queue-tmp/
-control/results/
-control/audit.jsonl
+control/inbox/
+control/outbox/
 update-signal/
 status/host.json
 

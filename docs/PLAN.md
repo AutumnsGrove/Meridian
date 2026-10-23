@@ -4,6 +4,13 @@ Milestones in the order they should be built. Each one is independently deployab
 is useful the day it exists, before any privileged code is written. Do not start a phase before the
 previous one's "done when" is true.
 
+The task-level work order that implements these phases is [agent/TASKS.md](agent/TASKS.md): Phase 1 is
+its stages 1-5, Phases 2 and 3 are stage 6, Phase 4 is stage 7. This file stays the definition of what
+"done" means for each phase. Two details here are superseded by decisions: the host-side scripts
+(`control.sh`, `probe.sh`, `control-run`) are the Go binary `meridian-host` (#52), and the Phase 1
+"verify from inside the container" check uses `meridian doctor` because the distroless image has no
+`curl` (#68).
+
 Phase 0 — Plans (current)
 Phase 1 — Read-only launcher, deployed
 Phase 2 — Control plane, one service, behind a guard
