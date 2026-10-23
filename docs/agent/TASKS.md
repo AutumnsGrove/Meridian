@@ -1,7 +1,42 @@
 # Tasks
 
-Progress lives here and nowhere else. Take the first unticked task whose `deps` are ticked. A task
-is done per [STANDARDS.md](../STANDARDS.md) section 10. `[human]` tasks are never ticked by an agent.
+Progress lives here and nowhere else. Work is split into **sessions**: one session is one sitting with
+a fresh context, covering a small fixed group of tasks. Do your session's tasks in order, run the
+end-of-session ritual ([README.md](README.md)), and stop. A task is done per
+[STANDARDS.md](../STANDARDS.md) section 10. `[human]` tasks are never ticked by an agent.
+
+## Sessions
+
+The next session is the first row with an unticked task. Task numbers are the ones below; stage
+documents hold the detail. Each session is sized to stay in the early, precise part of a context
+window; if one still runs long, split it with the partial-task rule in the README rather than pushing on.
+
+| Session | Tasks | Stage doc | What exists afterwards |
+|---|---|---|---|
+| **S1** | T01, T02, T03, T04 | [01](01-foundation.md) | Empty project that rejects bad commits and bad pushes |
+| **S2** | T08, T05, T06, T07 | [02](02-config-and-wire.md), [03](03-probe.md) (T08 only) | `jsonpath`, `format`, `atomicfile`, `wire` host snapshot, config load and validation, kinds table |
+| **S3** | T09, T10, T11 | [03](03-probe.md) | Fetch client, every health and vital kind |
+| **S4** | T12, T13 | [03](03-probe.md) | Merge rules, store, scheduler |
+| **S5** | T14, T15 | [04](04-gateway-and-web.md) | Gateway with guards and `/api/status` golden contract |
+| **S6** | T16, T17 | [04](04-gateway-and-web.md) | Web scaffold and the launcher UI |
+| **S7** | T18, T19 | [04](04-gateway-and-web.md) | Control placeholder page and the Playwright suite |
+| **S8** | T20, T21 | [05](05-cli-and-deploy.md) | `meridian run`, reload, healthcheck, `doctor` |
+| **S9** | T22, T23 | [05](05-cli-and-deploy.md) | `meridian-host probe`, Dockerfile, compose, image CI |
+| **gate** | T24 `[human]` | [05](05-cli-and-deploy.md) | Phase 1 verified on the potato (owner) |
+| **S10** | T25, T26 | [06](06-control.md) | Control wire types and the container side |
+| **S11** | T27 | [06](06-control.md) | `meridian-host exec` core: allowlist, validation, results, audit |
+| **S12** | T28, T29 | [06](06-control.md) | Command builders, real execution, DNS guard, reboot |
+| **S13** | T30, T31 | [06](06-control.md) | Control UI, units, sudoers |
+| **gate** | T32, T33 `[human]` | [06](06-control.md) | Phases 2 and 3 verified on the potato (owner) |
+| **S14** | T34, T35 | [07](07-update.md) | Digest resolution, `meridian-host update` with rollback |
+| **S15** | T36 | [07](07-update.md) | `install.sh`, release workflow |
+| **gate** | T37 `[human]` | [07](07-update.md) | Phase 4 verified on the potato (owner) |
+| **S16** | T38 | [08](08-closeout.md) | Review brief |
+| **S17** | T39 | [08](08-closeout.md) | Docs switched to maintenance mode; scaffolding archived |
+| **S18** | T40 (optional) | [08](08-closeout.md) | PR review workflow |
+
+`[human]` gates do not block later code sessions unless a task's `deps` say so (they do not); the
+owner can run them whenever convenient. S17 is always last because it deletes this file's context.
 
 Phase labels map to [PLAN.md](../PLAN.md): P1 = read-only launcher, P2 = control plane for one
 service, P3 = all targets, P4 = self-update and install.
@@ -71,9 +106,3 @@ service, P3 = all targets, P4 = self-update and install.
 - [ ] **T40** Optional: PR review workflow with Pi and OpenRouter (deps: T39)
 
 Phase 5 (homelab repo documentation) is out of this repo; T39 leaves a checklist for it.
-
----
-
-## Stage notes
-
-_Agents append a short paragraph here at the end of each stage._

@@ -33,8 +33,8 @@ reference to build-out task numbers (they are about to disappear).
 
 Last task of the build. Do it in this order, one small commit per step:
 
-1. **Archive the scaffolding.** Move `docs/PLAN.md` to `docs/history/PLAN.md` and `docs/agent/` to
-   `docs/history/build-out/`, each with a one-line banner at the top ("Historical: the plan this
+1. **Archive the scaffolding.** Move `docs/PLAN.md` to `docs/history/PLAN.md` and `docs/agent/`
+   (including `HANDOFF.md` and the session table) to `docs/history/build-out/`, each with a one-line banner at the top ("Historical: the plan this
    project was built from. Not maintained."). Move resolved entries of `OPEN-QUESTIONS.md` into
    DECISIONS.md (they should already be there) and reduce OPEN-QUESTIONS.md to its empty template.
    Fix every link that pointed into the moved files. Delete nothing else; git history keeps the rest.
@@ -49,7 +49,10 @@ Last task of the build. Do it in this order, one small commit per step:
      in `config.HealthKinds`/`VitalKinds`, one runner, tests, the example config, the registry sync
      test fails until all agree), add a control target (the CONTROL.md checklist), cut a release,
      handle a Dependabot update, triage a fuzz crasher (commit it under `testdata/fuzz`, red-green fix);
-   - the loop for a single change: test first, small commits, `scripts/check`, docs and decision log.
+   - the loop for a single change: test first, small commits, `scripts/check`, docs and decision log;
+   - drop the session/handoff ritual (there is no build to resume), but keep the working style: a
+     focused change per session, small commits, ask the owner with the question tool only when a
+     decision is theirs.
 4. **Reference docs** (`ARCHITECTURE.md`, `CONTROL.md`, `DESIGN.md`, `INTEGRATIONS.md`, `STANDARDS.md`):
    read each against the code and fix drift. Remove sentences describing intent now that behaviour
    exists ("Nothing parses them yet", "Phase 1 will..."). In DECISIONS.md do **not** edit entries; append
@@ -63,7 +66,7 @@ Last task of the build. Do it in this order, one small commit per step:
 7. **Verify**: run a link checker over `*.md`, `scripts/check all`, and read the README top to bottom as a
    stranger would. Anything that still says "build-out", "Phase 0..5", or a `T##` id is a bug.
 
-**Done when**: `grep -rEn "T[0-9]{2}|build-out|Phase [0-5]" --include=*.md . | grep -v docs/history`
+**Done when**: `grep -rEn "T[0-9]{2}|S[0-9]{1,2}\b|HANDOFF|build-out|Phase [0-5]" --include=*.md . | grep -v docs/history`
 returns nothing, the README matches reality, and `AGENTS.md` describes maintaining the project rather
 than building it.
 
