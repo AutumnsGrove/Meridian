@@ -2,7 +2,7 @@
 
 How code in this repo is written, tested, secured and committed. These are rules, not suggestions;
 where a rule has a reason, the reason is written next to it so a judgement call can be made when a
-case is not covered. Decisions behind them are in [DECISIONS.md](DECISIONS.md) #44-#69.
+case is not covered. Decisions behind them are in [DECISIONS.md](DECISIONS.md) #44-#71.
 
 There are deliberately **no line-count limits and no coverage percentage gates**. A number invites
 gaming it. The standard is the reading test: a stranger can open any file, understand what it does,
@@ -287,6 +287,9 @@ A task in [docs/agent/TASKS.md](agent/TASKS.md) is done when:
 5. Docs that the change made false are corrected in the same commit series, and any new design choice
    is appended to DECISIONS.md.
 6. The task is ticked in TASKS.md in its own small commit.
+
+Work happens in short sessions with a cleared context between them (decision #70); the rules for
+stopping cleanly are in [agent/README.md](agent/README.md).
 
 If a task needs the real homelab box (marked `[human]`), the agent writes the exact steps and leaves
 the box unticked for the owner.

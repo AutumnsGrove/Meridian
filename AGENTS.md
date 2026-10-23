@@ -9,17 +9,28 @@ whether each is up, and letting its owner restart, update or stop them from a ph
 SvelteKit frontend embedded in one binary, a Docker container, and a small root-owned host binary for
 privileged actions.
 
-## Start here, every session
+## How work is split: one session, one chunk
 
-1. `git log --oneline -20` and `git status`. Know where the last session stopped.
-2. Read [docs/agent/README.md](docs/agent/README.md): the loop you follow.
-3. Open [docs/agent/TASKS.md](docs/agent/TASKS.md): take the **first unticked task** whose
-   dependencies are ticked and which is not blocked in
-   [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md). Read its stage document.
-4. Read [docs/STANDARDS.md](docs/STANDARDS.md) if you have not this session. It is short on purpose.
+The owner runs **one dedicated session per chunk of work** and clears context between them, because
+precision drops as context grows. So you do a bounded chunk, leave everything in a state where a
+brand-new session can pick up cold, and **stop**. The chunks are the numbered sessions (S1, S2, ...)
+in [docs/agent/TASKS.md](docs/agent/TASKS.md).
 
-You do not need to read the whole design set to start a task. Each task names the documents and
-decision numbers it depends on; read those, and read more only when the task touches them.
+## Start here, every session (keep this cheap)
+
+Read only these, in order. Do not read the other stage documents or the whole design set.
+
+1. [docs/agent/HANDOFF.md](docs/agent/HANDOFF.md): where the last session stopped, what is next, any
+   gotchas. Short by design.
+2. `git status` and `git log --oneline -10`. The tree should be clean; if it is not, the handoff says why.
+3. The block for your session in [docs/agent/TASKS.md](docs/agent/TASKS.md) (the session table at the
+   top), then the **stage document sections for those tasks only**.
+4. [docs/STANDARDS.md](docs/STANDARDS.md) (once per session; it is short on purpose).
+5. Anything a task explicitly cites (a decision number, a design doc section). Read just that part.
+
+Then work the session's tasks in order, following [docs/agent/README.md](docs/agent/README.md) "The
+loop". When the session's last task is done, run the **end-of-session ritual** in that file and stop.
+Do not roll into the next session because you feel fine: a fresh context is the point.
 
 ## The five rules that matter most
 
@@ -36,11 +47,27 @@ decision numbers it depends on; read those, and read more only when the task tou
 The full list of hard constraints is in [CLAUDE.md](CLAUDE.md). They are not negotiable and not
 yours to relax, even when a task seems easier that way.
 
-## When you are stuck on a design question
+## When you need the owner
 
-Do not guess and do not stop the whole build. Append the question to
-[docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) in the format shown there (with your recommended
-answer), commit it, and move to the next unblocked task. The owner settles the batch later.
+Pi has a question tool (the same style as Claude Code's `AskUserQuestion`: a few questions, 2-4
+options each, an "other" free-text escape). Using it plays a sound that pulls the owner back to the
+window, so **ask rarely and make each ask count**.
+
+Ask when the answer is genuinely the owner's call and you cannot resolve it from the docs, the code
+or an obviously reversible default. Do not ask what the docs answer, do not ask for conventional
+defaults, and do not ask for permission to do your task.
+
+How to ask well:
+- Batch related questions into one call (up to four). One interruption beats four.
+- Put your recommended option first and mark it "(Recommended)".
+- Give enough context in each question to answer without scrolling back, with consequences in the
+  option descriptions.
+- When answered, record the decision as a new numbered entry in
+  [docs/DECISIONS.md](docs/DECISIONS.md) in the same commit series as the work it unblocks.
+
+If the question tool is unavailable, unanswered, or the question is not needed to keep working, fall
+back to [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md): log it with your recommendation, skip to
+the next unblocked task, and never build on a guess.
 
 ## Things you must never do
 

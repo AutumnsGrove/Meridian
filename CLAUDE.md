@@ -14,7 +14,7 @@ and the work order is written. Implementation is done by a coding agent followin
    primacy, fuzzing, security rules, commit style). They apply to every change
 1. `README.md` — what this is, what it deliberately is not
 2. `docs/PLAN.md` — the phases, and what "done" means for each
-3. `docs/DECISIONS.md` — 69 decisions already made; do not silently reverse one
+3. `docs/DECISIONS.md` — 71 decisions already made; do not silently reverse one
 4. `docs/ARCHITECTURE.md` — components, networking, the two probe paths
 5. `docs/CONTROL.md` — the privileged control plane, if you're touching anything action-related
 6. `docs/DESIGN.md` — tokens, layouts, phone-first rules

@@ -1,7 +1,10 @@
 # Open questions
 
-Questions the docs do not answer, raised by an implementing agent. The owner (or a stronger model
-on request) settles them in batches. A settled question is moved into
+Questions the docs do not answer, raised by an implementing agent that could not (or did not need to)
+interrupt the owner. The preferred route for a question that blocks work is the question tool (see
+`AGENTS.md`, "When you need the owner"); this file is the fallback for when that tool is unavailable
+or unanswered, and for lower-priority questions that do not block the current task. The owner (or a
+stronger model on request) settles them in batches. A settled question is moved into
 [DECISIONS.md](DECISIONS.md) as a new numbered entry and removed from here with a link.
 
 Rules for the agent:
