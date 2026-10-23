@@ -1,0 +1,212 @@
+# The homelab this project was built for — a worked example, not a default.
+#
+# Copy config.yaml.example instead if you're setting Meridian up for your own services. This file
+# exists to show a real, complete configuration with the quirks that pushed the schema into shape
+# (Ivy's Host-header check, AdGuard's basic auth, bwmon's byte-summing vital).
+#
+# Credentials are referenced by environment variable name only. The values live in ~/Meridian/.env
+# on the potato and are never committed.
+
+listen: 127.0.0.1:8891
+
+sections:
+  - {id: everyday, title: Everyday}
+  - {id: backbone, title: Backbone}
+
+poll:
+  interval: 15s
+  idle_interval: 2m
+  idle_after: 10m
+  timeout: 4s
+  refresh_min: 5s
+
+host_status:
+  file: /status/host.json
+  max_age: 90s
+
+search:
+  buttons:
+    - label: Search
+      url_template: http://100.81.103.51:8888/search?q={q}
+    - label: Ask Polaris
+      url_template: https://lepotato.taild95077.ts.net:8899/search?q={q}
+
+control:
+  queue_depth: 8
+  action_timeout: 90s
+  audit_lines: 50
+  audit_retention: 8760h
+
+services:
+  # ── everyday ─────────────────────────────────────────────────────────────────────────────
+  - id: polaris
+    name: Polaris
+    section: everyday
+    icon: sparkles
+    description: search-augmented AI assistant
+    url: https://lepotato.taild95077.ts.net:8899
+    probes:
+      health:
+        kind: http_json
+        url: http://localhost:8899/healthz
+        path: status
+        equals: ok
+      vitals:
+        - {kind: json_field, label: build, url: "http://localhost:8899/healthz", path: version}
+    control:
+      target: polaris
+      actions: [restart, stop, start, update]
+
+  - id: ivy
+    name: Ivy
+    section: everyday
+    icon: mail
+    description: mail
+    url: http://100.81.103.51:8418
+    probes:
+      health:
+        kind: http_json
+        # localhost, never the tailnet IP — Ivy's allowed_hosts answers 403 to Host: 100.81.103.51:8418
+        url: http://localhost:8418/api/v1/health
+        path: status
+        equals: ok
+      vitals:
+        - kind: json_count
+          label: needs you
+          url: http://localhost:8418/api/v1/needs-attention
+          where: items
+          field: needs
+          equals: true
+    control:
+      target: ivy
+      actions: [restart, stop, start, update]
+
+  - id: bwmon
+    name: bwmon
+    section: everyday
+    icon: activity
+    description: exit-node bandwidth
+    url: http://100.81.103.51:8890
+    probes:
+      health:
+        kind: http_status
+        url: http://localhost:8890/api/summary?range=today
+      vitals:
+        - kind: json_sum
+          label: today
+          url: http://localhost:8890/api/summary?range=today
+          where: devices
+          fields: [up_bytes, down_bytes]
+          scale: bytes
+          unit: GB
+          decimals: 1
+          suffix: GB today
+    control:
+      target: bwmon
+      actions: [restart, stop, start, update]
+
+  - id: searxng
+    name: SearXNG
+    section: everyday
+    icon: search
+    description: private search
+    url: http://100.81.103.51:8888
+    probes:
+      health: {kind: http_status, url: "http://localhost:8888/"}
+    control:
+      target: searxng
+      actions: [restart, stop, start]
+
+  # ── backbone ─────────────────────────────────────────────────────────────────────────────
+  - id: adguard
+    name: AdGuard Home
+    section: backbone
+    icon: shield
+    description: DNS filtering
+    url: http://100.81.103.51
+    probes:
+      health:
+        kind: http_status
+        url: http://localhost/
+        expect: [200, 302]
+      vitals:
+        - kind: json_ratio_pct
+          label: blocked
+          url: http://localhost/control/stats
+          numerator: num_blocked_filtering
+          denominator: num_dns_queries
+          decimals: 0
+          suffix: "% blocked"
+          auth:
+            basic_env: [MERIDIAN_ADGUARD_USER, MERIDIAN_ADGUARD_PASS]
+    control:
+      target: adguard
+      dns: true
+      actions: [restart, stop, start]
+      no_update_reason: AdGuard has no scripted updater
+
+  - id: unbound
+    name: Unbound
+    section: backbone
+    icon: network
+    description: caching resolver, no web surface
+    url: ""
+    probes:
+      health:
+        kind: dns
+        addr: 127.0.0.1:5335
+        qname: example.com.
+        expect_rcode: NOERROR
+    control:
+      target: unbound
+      dns: true
+      actions: [restart, stop, start]
+      no_update_reason: Unbound has no scripted updater
+
+  - id: vaultwarden
+    name: Vaultwarden
+    section: backbone
+    icon: lock
+    description: passwords
+    url: https://lepotato.taild95077.ts.net
+    probes:
+      health: {kind: http_status, url: "http://localhost:8081/"}
+    control:
+      target: vaultwarden
+      actions: [restart, stop, start, update]
+
+  - id: tailscale
+    name: Tailscale
+    section: backbone
+    icon: globe
+    description: exit node
+    url: ""
+    probes:
+      health: {kind: host_field, path: tailscale.online}
+      vitals:
+        - {kind: host_field, label: peers, path: tailscale.peers_online}
+    control: null
+
+  - id: her-go
+    name: Mira
+    section: backbone
+    icon: message-circle
+    description: Telegram companion, no web UI
+    url: ""
+    probes:
+      health: {kind: host_unit, unit: her-go.service}
+    control:
+      target: her-go
+      actions: [restart, stop, start, update]
+
+  - id: meridian
+    name: Meridian
+    section: backbone
+    icon: compass
+    description: this page
+    url: ""
+    probes:
+      health: {kind: self}
+    control:
+      target: meridian
+      actions: [restart, update]

@@ -1,0 +1,203 @@
+# Meridian configuration template — DRAFT
+#
+# Nothing parses this file yet (Phase 0 is plans only). It exists to argue about the shape before any
+# Go struct is written. See docs/ARCHITECTURE.md for the design.
+#
+# This file is a TEMPLATE for anyone: every host, port and service name below is a placeholder.
+# The homelab this project was built for has its own worked example in examples/homelab.yaml.
+#
+# Nothing about any particular service lives in Meridian's code. If your services aren't listed
+# here, you add them here — no Go changes, no rebuild.
+
+listen: 127.0.0.1:8891
+
+# Sections are declared, not implied: this list is the display order, and a service referencing an
+# undeclared section is a startup error rather than a tile that quietly never renders.
+sections:
+  - {id: everyday, title: Everyday}
+  - {id: backbone, title: Backbone}
+
+poll:
+  interval: 15s              # how often probes refresh while a page is open
+  idle_interval: 2m          # after idle_after with no page open, back off to this
+  idle_after: 10m
+  timeout: 4s                # per-probe ceiling
+  refresh_min: 5s            # floor for manual refresh
+
+# Where unit/tailnet state comes from. Written by the host-side probe timer; the container only reads
+# it. Delete this block if you run Meridian without the host probe (unit/host probes then show
+# "unknown" instead of lying).
+host_status:
+  file: /status/host.json
+  max_age: 90s               # older than this and dependant tiles go stale, never green
+
+# Zero or more buttons. `{q}` is replaced with the URL-encoded query. One button is fine; two side by
+# side is the layout this was designed for. The first is what Enter submits.
+search:
+  buttons:
+    - label: Search
+      url_template: https://search.example.com/search?q={q}
+    - label: Ask the assistant
+      url_template: https://assistant.example.com/search?q={q}
+
+control:
+  queue_depth: 8             # refuse to enqueue beyond this
+  action_timeout: 90s        # how long the UI waits for a result before saying "still running"
+  audit_lines: 50            # how many audit rows the control view renders
+  audit_retention: 8760h     # 365 days, then the host watcher prunes those lines
+  queue_dir: /control/queue
+  queue_tmp_dir: /control/queue-tmp
+  results_dir: /control/results
+  audit_file: /control/audit.jsonl
+
+services:
+  # ── a plain web app ───────────────────────────────────────────────────────────────────────
+  - id: myapp                     # any stable slug; used in URLs (/control#myapp) and audit lines
+    name: My App                  # display name
+    section: everyday
+    icon: sparkles                # any @lucide/svelte icon name, kebab-case
+    description: what it is       # one short line under the name
+    url: https://myapp.example.com    # what a *browser* opens
+    probes:
+      health:
+        kind: http_json
+        url: http://localhost:9000/healthz   # what the *container* fetches (often not the same!)
+        path: status                          # dotted path into the JSON
+        equals: ok
+      vitals:
+        - kind: json_field
+          label: build
+          url: http://localhost:9000/healthz
+          path: version
+
+  # ── a service needing auth for its vital ──────────────────────────────────────────────────
+  - id: blocky
+    name: DNS Filter
+    section: backbone
+    icon: shield
+    url: http://192.0.2.10
+    probes:
+      health:
+        kind: http_status
+        url: http://localhost/
+        expect: [200, 302]        # a login redirect is healthy
+      vitals:
+        - kind: json_ratio_pct    # numerator / denominator * 100
+          label: blocked
+          url: http://localhost/control/stats
+          numerator: num_blocked_filtering
+          denominator: num_dns_queries
+          decimals: 0
+          suffix: "% blocked"
+          auth:
+            basic_env: [MYAPP_USER, MYAPP_PASS]   # values come from .env, never this file
+
+  # ── docker compose stack ──────────────────────────────────────────────────────────────────
+  - id: myapp2
+    name: Second App
+    section: everyday
+    icon: mail
+    url: https://mail.example.com
+    probes:
+      health:
+        kind: http_json
+        url: http://localhost:8080/api/v1/health
+        path: status
+        equals: ok
+      vitals:
+        - kind: json_count               # counts array elements matching a field value
+          label: needs you
+          url: http://localhost:8080/api/v1/needs
+          where: items
+          field: needs
+          equals: true
+    control:
+      target: myapp2                     # must also exist in /etc/meridian/targets.json
+      actions: [restart, stop, start, update]
+
+  # ── a systemd unit with no web surface ────────────────────────────────────────────────────
+  - id: daemon
+    name: Daemon
+    section: backbone
+    icon: activity
+    description: no web UI
+    probes:
+      health:
+        kind: host_unit                  # state from status/host.json
+        unit: daemon.service
+    control:
+      target: daemon
+      actions: [restart, stop, start]
+      no_update_reason: no scripted updater   # renders a disabled button that says why
+
+  # ── a DNS service probed by actually asking it ────────────────────────────────────────────
+  - id: resolver
+    name: Resolver
+    section: backbone
+    icon: network
+    probes:
+      health:
+        kind: dns
+        addr: 127.0.0.1:5335
+        qname: example.com.
+        expect_rcode: NOERROR
+    control:
+      target: resolver
+      dns: true                          # stop needs the stronger ack + auto-restore
+      actions: [restart, stop, start]
+
+  # ── a tile backed only by host state ──────────────────────────────────────────────────────
+  - id: tailnet
+    name: VPN
+    section: backbone
+    icon: globe
+    probes:
+      health:
+        kind: host_field
+        path: tailscale.online
+      vitals:
+        - kind: host_field
+          label: peers
+          path: tailscale.peers_online
+    control: null                        # read-only tile
+
+  # ── this page's own health ────────────────────────────────────────────────────────────────
+  - id: meridian
+    name: Meridian
+    section: backbone
+    icon: compass
+    probes:
+      health: {kind: self}
+    control:
+      target: meridian
+      actions: [restart, update]
+
+# ───────────────────────────────────────────────────────────────────────────────────────────────
+# Probe kinds (each is one function in probe/; adding a service needs none of them)
+#
+#   http_status   {url, expect: [200] | expect_class: "2xx"}
+#   http_json     {url, path, equals | one_of | exists}
+#   dns           {addr, qname, expect_rcode}
+#   host_unit     {unit}                      ← reads status/host.json
+#   host_field    {path, equals}
+#   self          {}                          ← the hub's own health
+#
+# Vital kinds
+#
+#   json_field     {url, path, prefix?, suffix?, decimals?}
+#   json_count     {url, where, field, equals, suffix?}
+#   json_sum       {url, where, fields, scale: bytes|none, unit?, decimals?}
+#   json_ratio_pct {url, numerator, denominator, suffix?, decimals?}
+#   host_field     {path, suffix?}
+#
+# Auth (any http probe or vital): {auth: {basic_env: [USER_VAR, PASS_VAR]}}
+#                                {auth: {bearer_env: TOKEN_VAR}}
+#                                {auth: {header: {Name: value}}}
+#
+# Control targets (see docs/CONTROL.md — the host allowlist is authoritative)
+#
+#   target: <id>               must exist in /etc/meridian/targets.json
+#   actions: [...]             any of start, stop, restart, update
+#   dns: true                  stop requires the stronger ack and schedules a 10-minute auto-restore
+#   no_update_reason: string   renders update disabled, with this as the explanation
+# ───────────────────────────────────────────────────────────────────────────────────────────────

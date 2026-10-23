@@ -1,0 +1,34 @@
+# Build artifacts and local-only state. Nothing in this repo should ever contain
+# a real credential or a live host path's contents.
+
+# Secrets and per-box config
+.env
+.env.*
+config.yaml
+*.local.yaml
+
+# Go
+/meridian
+/dist/
+/data/
+
+# Frontend
+web/node_modules/
+web/.svelte-kit/
+web/build/
+web/.vite/
+pnpm-lock.yaml.bak
+
+# Runtime state that must never be committed (see docs/ARCHITECTURE.md)
+control/queue/
+control/queue-tmp/
+control/results/
+control/audit.jsonl
+update-signal/
+status/host.json
+
+# Editors / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
