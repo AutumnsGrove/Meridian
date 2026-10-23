@@ -4,8 +4,9 @@ The front door to the homelab: one page that links to every self-hosted service,
 each one is actually up, and — when something needs a kick — lets you restart, update or stop it
 without finding the right SSH command at the wrong moment.
 
-**Status: planning / scaffolding.** No application code yet — this repo currently holds the design
-and plan documents, a generic config template and one worked example. Nothing is deployed.
+**Status: design complete, build not started.** No application code yet — this repo holds the design
+and plan documents, the engineering standards, the build work order, a generic config template and
+one worked example. Nothing is deployed.
 
 Named after the line that passes overhead: the reference you measure everything else against. The
 sibling projects are Polaris (a fixed star you navigate by) and Ivy (the mail client); Meridian is
@@ -61,6 +62,10 @@ docs/CONTROL.md). Without it the page is a launcher; with it, it can act.
 | Doc | What's in it |
 |---|---|
 | [docs/PLAN.md](docs/PLAN.md) | Phased milestones, what "done" means for each, open questions |
+| [docs/STANDARDS.md](docs/STANDARDS.md) | How code is written, tested, fuzzed, secured and committed |
+| [docs/agent/](docs/agent/README.md) | The build work order: ordered tasks with the design decisions each one needs |
+| [AGENTS.md](AGENTS.md) | Entry point for a coding agent working in this repo |
+| [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) | Design questions raised during the build, awaiting an answer |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, polling model, config shape, host/container boundary, files on disk |
 | [docs/CONTROL.md](docs/CONTROL.md) | The privileged control plane: request protocol, allowlist, guards, audit, threat model |
 | [docs/DESIGN.md](docs/DESIGN.md) | Visual language, tokens, layouts, phone-first behaviour, accessibility |

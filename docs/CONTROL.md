@@ -3,6 +3,18 @@
 The privileged half of Meridian. Read this before changing anything under `control/`, `compose/watcher/`
 or `/etc/meridian`.
 
+> **Implementation notes (decisions #52, #62-#67).** The executor is `meridian-host exec`, a
+> stdlib-only Go binary installed root-owned at `/etc/meridian/meridian-host`; it replaces the
+> `control-run` script and `compose/watcher/control.sh` named below (the allowlist, the request
+> protocol and every guard are unchanged). The sudoers rule is the single command
+> `/etc/meridian/meridian-host exec` with no arguments. The container's writable control area is
+> `control/inbox/{tmp,queue}`; results and the audit log are in `control/outbox/`, mounted read-only,
+> and the executor prunes both. Self-update is the `meridian-host update` subcommand. Where the
+> prose below says `control/queue`, `control/queue-tmp`, `control/results` or `control/audit.jsonl`,
+> read `control/inbox/queue`, `control/inbox/tmp`, `control/outbox/results` and
+> `control/outbox/audit.jsonl`. The build-out task docs in `docs/agent/06-control.md` are the
+> detailed specification of the implementation.
+
 ## Threat model, stated plainly
 
 | Actor | Can they press a button? | Notes |
@@ -144,7 +156,9 @@ shows up as a refused action, which is the correct direction for the failure to 
 
 `kind` is one of `systemd`, `compose`, `container`, `host`. `update.kind` is one of `unit`
 (`systemctl start <unit>`, blocking because those units are `Type=oneshot`), `command` (an argv
-array — never a shell string), or `docker` (`pull` + recreate from a compose definition).
+array — never a shell string), `docker` (`pull` + recreate from a compose definition), or `self`
+(Meridian's own digest-pinned update, run by `meridian-host update`; carries the image repository,
+the compose directory and the health URL).
 
 ### Who runs what (this is not cosmetic)
 

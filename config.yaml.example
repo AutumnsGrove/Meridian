@@ -11,6 +11,13 @@
 
 listen: 127.0.0.1:8891
 
+# Browser-facing guards (not authentication). Loopback names are always accepted; list every other
+# hostname people reach this page by. An entry without a port matches any port. Requests whose Host
+# header is not listed are refused, which stops DNS-rebinding attacks from a web page.
+server:
+  allowed_hosts:
+    - hub.example.com
+
 # Sections are declared, not implied: this list is the display order, and a service referencing an
 # undeclared section is a startup error rather than a tile that quietly never renders.
 sections:
@@ -41,14 +48,13 @@ search:
       url_template: https://assistant.example.com/search?q={q}
 
 control:
+  reboot: false              # true shows the emergency reboot section
   queue_depth: 8             # refuse to enqueue beyond this
   action_timeout: 90s        # how long the UI waits for a result before saying "still running"
   audit_lines: 50            # how many audit rows the control view renders
-  audit_retention: 8760h     # 365 days, then the host watcher prunes those lines
-  queue_dir: /control/queue
-  queue_tmp_dir: /control/queue-tmp
-  results_dir: /control/results
-  audit_file: /control/audit.jsonl
+  audit_retention: 8760h     # 365 days, then the host executor prunes those lines
+  inbox_dir: /control/inbox      # rw: contains tmp/ and queue/ (one mount, so rename is atomic)
+  outbox_dir: /control/outbox    # ro: contains results/ and audit.jsonl, written by the host only
 
 services:
   # ── a plain web app ───────────────────────────────────────────────────────────────────────

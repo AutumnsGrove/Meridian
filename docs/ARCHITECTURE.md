@@ -13,12 +13,12 @@ never gets to run a command it was not explicitly allowlisted for.
 │ meridian container  (network_mode: host, 127.0.0.1:8891)    │
 │   gateway   /healthz, /api/status, /api/control, /api/…     │
 │   probe     15s cached, server-side, parallel               │
-│   control   writes queue/<id>.json, reads results/<id>.json │
+│   control   writes inbox/queue/<id>.json, reads outbox/     │
 │   web       SvelteKit, embedded via go:embed                │
 └───────┬──────────────────────────────┬──────────────────────┘
         │ HTTP/DNS over host loopback  │ reads + writes files only
         ▼                             ▼
-  AdGuard, Ivy, bwmon,          ~/Meridian/control/{queue-tmp,queue,results}
+  AdGuard, Ivy, bwmon,          ~/Meridian/control/{inbox,outbox}
   Polaris, SearXNG,             ~/Meridian/status/host.json  (read)
   Vaultwarden, unbound                │
                                       │ inotify
@@ -37,6 +37,12 @@ never gets to run a command it was not explicitly allowlisted for.
 │                            reaches the container)           │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+> **Implementation notes (decisions #51, #52, #63).** Go packages live under `internal/`. The host
+> side (`control-run`, `control.sh`, `probe.sh` in the diagram above) is one stdlib-only Go binary,
+> `meridian-host`, with subcommands `exec`, `probe`, `update` and `targets`. The container's
+> writable control area is a single `control/inbox/` mount; results and the audit log are in a
+> read-only `control/outbox/`. Where this document and a decision disagree, the decision wins.
 
 ## Networking
 
@@ -127,7 +133,8 @@ target cannot be controllable without also being observable.
 ## Config
 
 `config.yaml` on the volume; `config.yaml.example` is a generic template in the repo, and
-`examples/homelab.yaml` is this box's worked config. Nothing parses them yet — see the files.
+`examples/homelab.yaml` is this box's worked config. The loader is `internal/config`; a test keeps
+the template's vocabulary in sync with the code.
 
 **The config is the whole product for anyone but us.** Meridian's code contains no service names, no
 hostnames, no ports, no service-specific quirks. Every URL, icon, section, probe and action is data.
@@ -193,10 +200,12 @@ them. If any service-specific assumption leaks into Go or Svelte, that test fail
 ├── .env                        # credentials (referenced by env var name), image digest pin
 ├── docker-compose.yml          # network_mode: host, one loopback publish
 ├── control/
-│   ├── queue-tmp/              # mounted rw — write here first, then rename into queue/ (atomic)
-│   ├── queue/                  # mounted rw — the only way the container asks for anything
-│   ├── results/                # mounted rw — one JSON per finished request
-│   └── audit.jsonl             # mounted ro, appended by the executor only
+│   ├── inbox/                  # the container's ONLY writable control mount (decision #63)
+│   │   ├── tmp/                #   write here first, then rename into queue/ (same mount: atomic)
+│   │   └── queue/              #   the only way the container asks for anything
+│   └── outbox/                 # mounted READ-ONLY; written by the executor only
+│       ├── results/            #   one JSON per finished request, kept 7 days
+│       └── audit.jsonl         #   append-only, kept 365 days
 ├── status/
 │   └── host.json               # mounted ro, written by meridian-probe.timer
 ├── update-signal/              # mounted rw — self-update handoff (Polaris/Ivy pattern)
