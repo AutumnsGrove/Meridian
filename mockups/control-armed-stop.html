@@ -91,7 +91,8 @@
 a.tile:hover { background: var(--color-surface-2); border-color: var(--color-border-strong); }
 .tile.static { background: transparent; }
 .tile .name { display: flex; align-items: center; gap: 10px; min-height: 24px; font-size: var(--fs-name); font-weight: 500; }
-.tile .name .ico { color: var(--color-text-dim); }
+.tile .name .ico { color: var(--color-text-dim); margin: 0 3px; }
+.tile .name .app-ico { width: 24px; height: 24px; flex: none; border-radius: 6px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent); }
 .tile .st { justify-self: end; min-height: 24px; }
 .tile .desc { align-self: end; font-size: var(--fs-meta); color: var(--color-text-dim); line-height: 1.35; }
 .tile .vital { grid-column: 2; justify-self: end; align-self: end; text-align: right; line-height: 1.1; white-space: nowrap; }
