@@ -27,6 +27,11 @@ open without a toolchain is a mockup that gets looked at.
 6. `control-no-executor.html` — the watcher isn't running; queued but unclaimed
 7. `control-reboot.html` — armed reboot, and the "rebooting, back in ~40s" state
 8. `launcher-stale.html` — stale vitals (value + age, dimmed) and an `unknown` dot
+9. `launcher-search.html` — empty search (both buttons disabled) and a typed query (both enabled)
+10. `status-key.html` — the five status marks and the three vital freshness levels, as a reference
+
+These are generated from one set of components so the tokens and states cannot drift between files;
+each output is still plain, self-contained HTML you can open without a toolchain.
 
 Name files for the screen and state, not the iteration: `control-armed-stop.html`, not
 `control-v3-final-2.html`.
