@@ -4,9 +4,11 @@ Guidance for working in this repo. Meridian is a personal homelab dashboard: one
 every self-hosted service, shows whether each is up, and lets its owner restart/update/stop them
 from a phone.
 
-**Status: build-out about to start.** There is no Go code and no frontend yet; the design is settled
-and the work order is written. Implementation is done by a coding agent following `AGENTS.md` and
-`docs/agent/TASKS.md`. When the build ends, the last tasks rewrite this file for maintenance.
+**Status: build-out in progress.** Session S1 (foundation) is done: the Go scaffold, the gate in
+`scripts/check`, the invariants test and CI all exist and are green. The frontend and the running
+dashboard do not exist yet; the design is settled and the rest of the work order is in
+`docs/agent/TASKS.md`. Implementation is done by a coding agent following `AGENTS.md`. When the
+build ends, the last tasks rewrite this file for maintenance.
 
 ## Read these first, in this order
 
