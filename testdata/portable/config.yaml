@@ -1,0 +1,82 @@
+# Portability fixture, not this homelab's config (decision #42).
+#
+# Everything here is a service Meridian has never heard of, with different section ids, a different
+# search engine and an image icon. If a service-specific assumption leaks into Go or Svelte, the
+# tests that load and render this file fail.
+
+listen: 127.0.0.1:8891
+
+server:
+  allowed_hosts:
+    - hub.example.org
+
+sections:
+  - {id: media, title: Media}
+  - {id: dev, title: Development}
+
+poll:
+  interval: 20s
+  idle_interval: 3m
+  idle_after: 15m
+  timeout: 5s
+  refresh_min: 10s
+
+host_status:
+  file: /status/host.json
+  max_age: 2m
+
+search:
+  buttons:
+    - label: Search the web
+      url_template: https://search.example.org/?q={q}
+
+control:
+  reboot: false
+  queue_depth: 4
+  action_timeout: 60s
+  audit_lines: 20
+  audit_retention: 720h
+  inbox_dir: /control/inbox
+  outbox_dir: /control/outbox
+
+services:
+  - id: gitea
+    name: Gitea
+    section: dev
+    icon: git-branch
+    description: source, issues, reviews
+    url: https://git.example.org
+    probes:
+      health: {kind: http_status, url: "http://localhost:3000/api/healthz", expect: [200]}
+      vitals:
+        - {kind: json_field, label: version, url: "http://localhost:3000/api/v1/version", path: version}
+    control: {target: gitea, actions: [start, stop, restart]}
+
+  - id: jellyfin
+    name: Jellyfin
+    section: media
+    icon: {image: icons/jellyfin.png}
+    description: films and shows
+    url: https://films.example.org
+    probes:
+      health: {kind: http_json, url: "http://localhost:8096/health", path: status, equals: ok}
+    control: null
+
+  - id: backup
+    name: Backup daemon
+    section: dev
+    icon: database
+    description: no web surface at all
+    probes:
+      health: {kind: host_unit, unit: backup.service}
+
+  - id: metrics
+    name: Metrics
+    section: media
+    icon: activity
+    description: raw host values, no HTTP
+    probes:
+      health: {kind: host_field, path: host.load1}
+      vitals:
+        - {kind: host_field, label: peers, path: tailscale.peers_online, suffix: online}
+    control: {target: metrics, dns: true, actions: [start, restart, stop]}

@@ -224,12 +224,14 @@ func (validator *validator) validateServices(parsed *Config) {
 	}
 }
 
-// validateProbe checks the parts common to every kind. The kinds table (T07) adds the per-kind
-// required and unexpected keys.
+// validateProbe checks the keys the kind allows and the parts common to every kind.
 func (validator *validator) validateProbe(path string, probe *Probe, isVital bool) {
-	if strings.TrimSpace(probe.Kind) == "" {
-		validator.fail(path+".kind", CodeProbeKindMissing, "kind is required")
+	table := HealthKinds
+	if isVital {
+		table = VitalKinds
 	}
+	validator.validateProbeKind(path, probe, table, isVital)
+
 	if probe.URL != "" && !validHTTPURL(probe.URL) {
 		validator.fail(path+".url", CodeProbeURLInvalid, "url must be an http or https URL without credentials")
 	}
@@ -241,6 +243,100 @@ func (validator *validator) validateProbe(path string, probe *Probe, isVital boo
 	}
 	if probe.Auth != nil {
 		validator.validateAuth(path+".auth", probe.Auth)
+	}
+}
+
+func (validator *validator) validateProbeKind(path string, probe *Probe, table map[string]KindRules, isVital bool) {
+	if strings.TrimSpace(probe.Kind) == "" {
+		validator.fail(path+".kind", CodeProbeKindMissing, "kind is required")
+		return
+	}
+	rules, known := table[probe.Kind]
+	if !known {
+		validator.fail(path+".kind", CodeProbeKindUnknown, "%q is not a known kind", probe.Kind)
+		return
+	}
+
+	allowed := make(map[string]bool, len(rules.Required)+len(rules.Optional)+2)
+	allowed["kind"] = true
+	if isVital {
+		// Every vital has a label for the tile; the table lists only the kind-specific keys.
+		allowed["label"] = true
+	}
+	for _, key := range rules.Required {
+		allowed[key] = true
+	}
+	for _, key := range rules.Optional {
+		allowed[key] = true
+	}
+
+	keys := make([]string, 0, len(probe.Set))
+	for key := range probe.Set {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if !allowed[key] {
+			validator.fail(path+"."+key, CodeProbeKeyUnexpected, "kind %s does not take %s", probe.Kind, key)
+		}
+	}
+	for _, key := range rules.Required {
+		if !probe.Has(key) {
+			validator.fail(path+"."+key, CodeProbeKeyMissing, "kind %s needs %s", probe.Kind, key)
+		}
+	}
+	for _, need := range rules.Needs {
+		validator.validateNeed(path, probe.Kind, probe, need)
+	}
+}
+
+func (validator *validator) validateNeed(path, kind string, probe *Probe, need Need) {
+	present := 0
+	for _, key := range need.Keys {
+		if probe.Has(key) {
+			present++
+		}
+	}
+	listed := strings.Join(need.Keys, ", ")
+
+	switch need.Kind {
+	case NeedExactlyOne:
+		if present != 1 {
+			validator.fail(path, CodeProbeNeedExactlyOne, "kind %s needs exactly one of %s", kind, listed)
+		}
+	case NeedAtMostOne:
+		if present > 1 {
+			validator.fail(path, CodeProbeNeedAtMostOne, "kind %s takes at most one of %s", kind, listed)
+		}
+	case NeedBothOrNeither:
+		if present != 0 && present != len(need.Keys) {
+			validator.fail(path, CodeProbeNeedBothOrNeither, "kind %s needs %s together, or neither", kind, listed)
+		}
+	case NeedOneOfValues:
+		key := need.Keys[0]
+		if !probe.Has(key) {
+			return
+		}
+		value, ok := probeString(probe, key)
+		if !ok {
+			return
+		}
+		for _, allowed := range need.Values {
+			if value == allowed {
+				return
+			}
+		}
+		validator.fail(path+"."+key, CodeProbeNeedValue, "kind %s takes %s as %s", kind, key, strings.Join(need.Values, " or "))
+	}
+}
+
+// probeString reads a string field by its YAML key, for the value needs in the kinds table.
+func probeString(probe *Probe, key string) (string, bool) {
+	switch key {
+	case "scale":
+		return probe.Scale, true
+	default:
+		return "", false
 	}
 }
 
