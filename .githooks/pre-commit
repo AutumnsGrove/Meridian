@@ -1,0 +1,7 @@
+#!/bin/sh
+# Every commit passes the fast gate (docs/STANDARDS.md section 7).
+# Install once per clone: git config core.hooksPath .githooks
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+exec "$root/scripts/check" --fast

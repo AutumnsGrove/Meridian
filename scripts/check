@@ -1,0 +1,20 @@
+#!/bin/sh
+# The one gate, shared by hands and CI.
+#
+# Run this once per clone so the pre-commit hook is installed:
+#     git config core.hooksPath .githooks
+#
+# Usage: scripts/check [--fast]
+set -eu
+
+cd "$(dirname "$0")/.."
+
+echo "== go"
+unformatted=$(gofmt -l .)
+if [ -n "$unformatted" ]; then
+	printf 'gofmt: these files need formatting:\n%s\n' "$unformatted" >&2
+	exit 1
+fi
+go vet ./...
+go test ./...
+go build ./cmd/...
