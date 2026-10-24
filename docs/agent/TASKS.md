@@ -50,7 +50,7 @@ service, P3 = all targets, P4 = self-update and install.
 
 ## Stage 2: Config and wire types ([02-config-and-wire.md](02-config-and-wire.md))
 
-- [ ] **T05** `atomicfile` and `wire` host snapshot, ids (deps: T01, T08)
+- [x] **T05** `atomicfile` and `wire` host snapshot, ids (deps: T01, T08)
 - [ ] **T06** Config types, strict load, validation (deps: T01)
 - [ ] **T07** Kinds table, registry sync test, example configs, portability fixture (deps: T06)
 
