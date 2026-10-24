@@ -44,7 +44,7 @@ service, P3 = all targets, P4 = self-update and install.
 ## Stage 1: Foundation ([01-foundation.md](01-foundation.md))
 
 - [x] **T01** Repo scaffold: module, directories, thin mains, `web/embed.go`, lint config, pre-commit hook
-- [ ] **T02** `scripts/check` and `scripts/fuzz` (deps: T01)
+- [x] **T02** `scripts/check` and `scripts/fuzz` (deps: T01)
 - [ ] **T03** Invariants test: the hard constraints as code (deps: T01)
 - [ ] **T04** CI workflows and Dependabot (deps: T02, T03)
 
