@@ -140,7 +140,9 @@ block; it is the documented contract).
 **Example configs**
 - Update `config.yaml.example` with the `server:` block (`allowed_hosts`) and keep it loading clean.
 - Update the existing `examples/homelab.yaml` to the same schema (add `server.allowed_hosts` with the
-  `.ts.net` name) and make it a loading-clean fixture in tests.
+  `.ts.net` name) and make it a loading-clean fixture in tests. Also set `control.reboot: true`
+  there: the default is `false`, and this deployment is supposed to have the emergency reboot
+  (decision #19). The template keeps `false` so a stranger doesn't inherit a reboot button.
 - **Portability fixture** `testdata/portable/config.yaml`: services this homelab has never heard of
   (`gitea`, `jellyfin`, a raw TCP-ish `host_unit` service, a service with no web UI), different
   section ids (`media`, `dev`), different search buttons. Loads clean. Used again by the gateway

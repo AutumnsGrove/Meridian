@@ -11,8 +11,8 @@ its stages 1-5, Phases 2 and 3 are stage 6, Phase 4 is stage 7. This file stays 
 "verify from inside the container" check uses `meridian doctor` because the distroless image has no
 `curl` (#68).
 
-Phase 0 — Plans (current)
-Phase 1 — Read-only launcher, deployed
+Phase 0 — Plans ✅ done
+Phase 1 — Read-only launcher, deployed (current; work order stages 1-5)
 Phase 2 — Control plane, one service, behind a guard
 Phase 3 — Control plane, all targets
 Phase 4 — Self-update and install path
@@ -20,14 +20,20 @@ Phase 5 — Homelab documentation
 
 ---
 
-## Phase 0 — Plans
+## Phase 0 — Plans ✅
 
-Write the documents in this repo; settle the open questions at the bottom of this file. No code, no
-repo on GitHub, nothing deployed.
+Write the documents in this repo; settle the open questions at the bottom of this file.
 
 **Done when:** the docs agree with each other, the potato facts they cite are still true (unit
 names, ports, container names), and the control-plane design has been read end to end once with
 fresh eyes.
+
+**Done** on 2026-10-23. The design landed at 71 recorded decisions, a standards document and a
+session-by-session work order ([agent/TASKS.md](agent/TASKS.md)), with mockups for every state.
+Two things the original criterion was written before: the repo is public, and the build is split
+across short sessions (decisions #44, #70), so "done" was verified by the docs being testable
+rather than by one long read. The remaining design questions live in
+[OPEN-QUESTIONS.md](OPEN-QUESTIONS.md), not at the bottom of this file.
 
 ---
 

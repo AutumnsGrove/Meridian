@@ -20,6 +20,14 @@ poll:
   timeout: 4s
   refresh_min: 5s
 
+# Browser-facing guards (not authentication, decision #54). Loopback names are always accepted.
+# Without the .ts.net entry the real box refuses its own bookmarked URL with a 403, which looks
+# exactly like a broken service.
+server:
+  allowed_hosts:
+    - lepotato
+    - lepotato.taild95077.ts.net
+
 host_status:
   file: /status/host.json
   max_age: 90s
@@ -32,10 +40,13 @@ search:
       url_template: https://lepotato.taild95077.ts.net:8899/search?q={q}
 
 control:
+  reboot: true               # the owner asked for the emergency reboot; the default (false) hides it
   queue_depth: 8
   action_timeout: 90s
   audit_lines: 50
   audit_retention: 8760h
+  inbox_dir: /control/inbox
+  outbox_dir: /control/outbox
 
 services:
   # ── everyday ─────────────────────────────────────────────────────────────────────────────

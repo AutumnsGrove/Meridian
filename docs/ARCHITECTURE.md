@@ -25,13 +25,13 @@ never gets to run a command it was not explicitly allowlisted for.
                                       ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ host: meridian-control.path → meridian-control.service      │
-│   compose/watcher/control.sh   (as deploy user, flock)      │
-│     └── sudo -n /etc/meridian/control-run <request.json>    │
+│     meridian-host exec  (as root, argv+allowlist only)      │
+│     └── sudo -n /etc/meridian/meridian-host exec  (allowlist, argv only)    │
 │           validates /etc/meridian/targets.json (root-owned) │
 │           runs systemctl / docker / systemd-run only        │
 │           writes results/<id>.json + audit.jsonl            │
 │                                                             │
-│ host: meridian-probe.timer (30s) → probe.sh                 │
+│ host: meridian-probe.timer (30s) → meridian-host probe      │
 │   systemctl is-active + tailscale status --json             │
 │     → status/host.json   (the only way unit/tailnet state   │
 │                            reaches the container)           │
@@ -213,7 +213,8 @@ them. If any service-specific assumption leaks into Go or Svelte, that test fail
 
 /etc/meridian/                  # root-owned, outside the repo, never mounted
 ├── targets.json                # the allowlist
-└── control-run                 # the executor
+├── observe.json                # observation-only units, if any (decision #61)
+└── meridian-host               # the host binary: exec, probe, update, targets
 ```
 
 Nothing else from the host is mounted. Not the repo (so a compromised container cannot rewrite the
@@ -221,7 +222,7 @@ watcher script), not `/etc/meridian` (so it cannot widen its own allowlist), not
 
 **Ownership:** the container runs as `${MERIDIAN_UID}:${MERIDIAN_GID}` (the deploy user, written by
 `install.sh`), the same convention Ivy uses, so the queue/results directories are writable without
-being world-writable and the `control.sh` watcher can delete request files as itself.
+being world-writable and `meridian-host exec` can delete request files as the deploy user.
 
 ## Why not just mount docker.sock
 
