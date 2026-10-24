@@ -19,7 +19,8 @@ config.yaml
 # Frontend
 web/node_modules/
 web/.svelte-kit/
-web/build/
+web/build/*
+!web/build/.gitkeep
 web/.vite/
 pnpm-lock.yaml.bak
 

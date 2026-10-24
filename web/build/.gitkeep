@@ -1,0 +1,2 @@
+# Keep the directory so //go:embed all:build compiles before the frontend is built.
+# Everything else in here is generated and ignored (see .gitignore).
