@@ -61,12 +61,12 @@ type HealthRunner func(ctx context.Context, env Env, probe config.Probe) Health
 // HealthRunners is every health kind. The registry test keeps it equal to config.HealthKinds, so a
 // kind cannot exist in the config schema without a runner, or the other way round.
 var HealthRunners = map[string]HealthRunner{
-	"http_status": runHTTPStatus,
-	"http_json":   runHTTPJSON,
-	"dns":         runDNS,
-	"host_unit":   runHostUnit,
-	"host_field":  runHostField,
-	"self":        runSelf,
+	"http_status": healthHTTPStatus,
+	"http_json":   healthHTTPJSON,
+	"dns":         healthDNS,
+	"host_unit":   healthHostUnit,
+	"host_field":  healthHostField,
+	"self":        healthSelf,
 }
 
 // Errors the host snapshot seam can produce. They are part of the closed set because the page says
@@ -81,8 +81,8 @@ var (
 // errBadJSON means the body was not JSON this build can read.
 var errBadJSON = errors.New("probe: body is not JSON")
 
-// runHTTPStatus reports ok when the status is in expect, or in expect_class (default 2xx).
-func runHTTPStatus(ctx context.Context, env Env, probe config.Probe) Health {
+// healthHTTPStatus reports ok when the status is in expect, or in expect_class (default 2xx).
+func healthHTTPStatus(ctx context.Context, env Env, probe config.Probe) Health {
 	if env.Fetch == nil {
 		return unknownHealth(CodeBadValue)
 	}
@@ -96,8 +96,8 @@ func runHTTPStatus(ctx context.Context, env Env, probe config.Probe) Health {
 	return downHealth(CodeBadStatus)
 }
 
-// runHTTPJSON decodes the body and applies exactly one of equals, one_of or exists.
-func runHTTPJSON(ctx context.Context, env Env, probe config.Probe) Health {
+// healthHTTPJSON decodes the body and applies exactly one of equals, one_of or exists.
+func healthHTTPJSON(ctx context.Context, env Env, probe config.Probe) Health {
 	document, err := fetchJSON(ctx, env, probe)
 	if err != nil {
 		return healthFor(err)
@@ -132,8 +132,8 @@ func runHTTPJSON(ctx context.Context, env Env, probe config.Probe) Health {
 	}
 }
 
-// runDNS asks one question and compares the response code name with expect_rcode (default NOERROR).
-func runDNS(ctx context.Context, env Env, probe config.Probe) Health {
+// healthDNS asks one question and compares the response code name with expect_rcode (default NOERROR).
+func healthDNS(ctx context.Context, env Env, probe config.Probe) Health {
 	if env.Resolve == nil {
 		return unknownHealth(CodeBadValue)
 	}
@@ -151,8 +151,8 @@ func runDNS(ctx context.Context, env Env, probe config.Probe) Health {
 	return downHealth(CodeDNSRcode)
 }
 
-// runHostUnit reports the unit's state from the snapshot, and never ok from a stale one.
-func runHostUnit(_ context.Context, env Env, probe config.Probe) Health {
+// healthHostUnit reports the unit's state from the snapshot, and never ok from a stale one.
+func healthHostUnit(_ context.Context, env Env, probe config.Probe) Health {
 	snapshot, err := readHost(env)
 	if err != nil {
 		return hostHealth(err)
@@ -168,9 +168,9 @@ func runHostUnit(_ context.Context, env Env, probe config.Probe) Health {
 	}
 }
 
-// runHostField reads a dotted path from the snapshot: true is ok, false is down, and equals decides
+// healthHostField reads a dotted path from the snapshot: true is ok, false is down, and equals decides
 // when the config gives one.
-func runHostField(_ context.Context, env Env, probe config.Probe) Health {
+func healthHostField(_ context.Context, env Env, probe config.Probe) Health {
 	snapshot, err := readHost(env)
 	if err != nil {
 		return hostHealth(err)
@@ -196,8 +196,8 @@ func runHostField(_ context.Context, env Env, probe config.Probe) Health {
 	}
 }
 
-// runSelf is always ok: this process is the one answering.
-func runSelf(context.Context, Env, config.Probe) Health {
+// healthSelf is always ok: this process is the one answering.
+func healthSelf(context.Context, Env, config.Probe) Health {
 	return okHealth()
 }
 
