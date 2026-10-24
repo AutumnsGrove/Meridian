@@ -76,8 +76,10 @@ also records which keys were present (`Set map[string]struct{}`) so validation c
 **Load**: `Load(path string) (*Config, []Warning, error)` reads with a 256 KiB cap, decodes strictly,
 applies defaults (`poll.interval 15s`, `idle_interval 2m`, `idle_after 10m`, `timeout 4s`,
 `refresh_min 5s`, `control.queue_depth 8`, etc., from the template), validates, returns **all**
-validation problems at once as one error wrapping `[]Problem` (`Problem{Path, Message}`, where Path
-is like `services[2].probes.health.url`). A user fixing a config should not need five round trips.
+validation problems at once as one error wrapping `[]Problem` (`Problem{Path, Code, Message}`, where
+Path is like `services[2].probes.health.url` and Code is a stable string like `service_url_invalid`).
+A user fixing a config should not need five round trips. `Parse([]byte)` is the pure half of Load so
+the loader can be fuzzed without touching the filesystem.
 
 **Validation rules** (each is a table row with a test):
 - ids: slug regexp, unique across services; section ids unique; every service's `section` declared
