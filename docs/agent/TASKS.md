@@ -52,7 +52,7 @@ service, P3 = all targets, P4 = self-update and install.
 
 - [x] **T05** `atomicfile` and `wire` host snapshot, ids (deps: T01, T08)
 - [x] **T06** Config types, strict load, validation (deps: T01)
-- [ ] **T07** Kinds table, registry sync test, example configs, portability fixture (deps: T06)
+- [x] **T07** Kinds table, registry sync test, example configs, portability fixture (deps: T06)
 
 ## Stage 3: Probing ([03-probe.md](03-probe.md))
 
