@@ -1,5 +1,7 @@
 package probe
 
+import "errors"
+
 // This file is the closed table of reason codes (decisions #40 and #46). A probe returns a code, the
 // logs carry the code, and the page shows the sentence: no caller invents either. Errors never carry
 // response bodies, URLs with secrets or stack traces (STANDARDS section 4).
@@ -57,6 +59,19 @@ var reasonText = map[string]string{
 	CodeOff:             "it is reported as off",
 	CodeBadValue:        "a value it reported is not usable",
 }
+
+// Errors a vital returns besides the fetch and host ones, so the merge step names the reason from the
+// error instead of matching on message text.
+var (
+	// ErrMissingField means the path or field the config names is not in the answer.
+	ErrMissingField = errors.New("probe: field is missing")
+	// ErrUnexpectedType means the value is there but of a shape a vital does not format.
+	ErrUnexpectedType = errors.New("probe: value is not the expected type")
+	// ErrUnexpectedValue means the value is there and well typed, but not the expected one.
+	ErrUnexpectedValue = errors.New("probe: value is not the expected one")
+	// ErrBadValue means a value could not be used, such as bytes that are negative.
+	ErrBadValue = errors.New("probe: value is not usable")
+)
 
 // Reason returns the sentence for code, or "" for a code this build does not know, so an old page
 // can never print a raw identifier at the user.

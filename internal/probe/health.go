@@ -81,7 +81,7 @@ var (
 // errBadJSON means the body was not JSON this build can read.
 var errBadJSON = errors.New("probe: body is not JSON")
 
-// healthHTTPStatus reports ok when the status is in expect, or in expect_class (default 2xx).
+// runHTTPStatus reports ok when the status is in expect, or in expect_class (default 2xx).
 func healthHTTPStatus(ctx context.Context, env Env, probe config.Probe) Health {
 	if env.Fetch == nil {
 		return unknownHealth(CodeBadValue)
@@ -96,7 +96,7 @@ func healthHTTPStatus(ctx context.Context, env Env, probe config.Probe) Health {
 	return downHealth(CodeBadStatus)
 }
 
-// healthHTTPJSON decodes the body and applies exactly one of equals, one_of or exists.
+// runHTTPJSON decodes the body and applies exactly one of equals, one_of or exists.
 func healthHTTPJSON(ctx context.Context, env Env, probe config.Probe) Health {
 	document, err := fetchJSON(ctx, env, probe)
 	if err != nil {
@@ -132,7 +132,7 @@ func healthHTTPJSON(ctx context.Context, env Env, probe config.Probe) Health {
 	}
 }
 
-// healthDNS asks one question and compares the response code name with expect_rcode (default NOERROR).
+// runDNS asks one question and compares the response code name with expect_rcode (default NOERROR).
 func healthDNS(ctx context.Context, env Env, probe config.Probe) Health {
 	if env.Resolve == nil {
 		return unknownHealth(CodeBadValue)
@@ -151,7 +151,7 @@ func healthDNS(ctx context.Context, env Env, probe config.Probe) Health {
 	return downHealth(CodeDNSRcode)
 }
 
-// healthHostUnit reports the unit's state from the snapshot, and never ok from a stale one.
+// runHostUnit reports the unit's state from the snapshot, and never ok from a stale one.
 func healthHostUnit(_ context.Context, env Env, probe config.Probe) Health {
 	snapshot, err := readHost(env)
 	if err != nil {
@@ -168,7 +168,7 @@ func healthHostUnit(_ context.Context, env Env, probe config.Probe) Health {
 	}
 }
 
-// healthHostField reads a dotted path from the snapshot: true is ok, false is down, and equals decides
+// runHostField reads a dotted path from the snapshot: true is ok, false is down, and equals decides
 // when the config gives one.
 func healthHostField(_ context.Context, env Env, probe config.Probe) Health {
 	snapshot, err := readHost(env)
@@ -196,7 +196,7 @@ func healthHostField(_ context.Context, env Env, probe config.Probe) Health {
 	}
 }
 
-// healthSelf is always ok: this process is the one answering.
+// runSelf is always ok: this process is the one answering.
 func healthSelf(context.Context, Env, config.Probe) Health {
 	return okHealth()
 }
@@ -279,6 +279,14 @@ func CodeOf(err error) string {
 		return CodeBodyTooLarge
 	case errors.Is(err, errBadJSON):
 		return CodeBadJSON
+	case errors.Is(err, ErrMissingField):
+		return CodeMissingField
+	case errors.Is(err, ErrUnexpectedType):
+		return CodeUnexpectedType
+	case errors.Is(err, ErrUnexpectedValue):
+		return CodeUnexpectedValue
+	case errors.Is(err, ErrBadValue):
+		return CodeBadValue
 	case errors.Is(err, ErrHostStale):
 		return CodeHostStale
 	case errors.Is(err, ErrHostUnavailable):
