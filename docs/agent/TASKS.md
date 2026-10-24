@@ -57,9 +57,9 @@ service, P3 = all targets, P4 = self-update and install.
 ## Stage 3: Probing ([03-probe.md](03-probe.md))
 
 - [x] **T08** `jsonpath` and `format` pure packages (deps: T01)
-- [ ] **T09** Fetch client: limits, no redirects, auth, redaction (deps: T06)
-- [ ] **T10** Health kinds: `http_status`, `http_json`, `dns`, `host_unit`, `host_field`, `self` (deps: T07, T08, T09, T05)
-- [ ] **T11** Vital kinds (deps: T10)
+- [x] **T09** Fetch client: limits, no redirects, auth, redaction (deps: T06)
+- [x] **T10** Health kinds: `http_status`, `http_json`, `dns`, `host_unit`, `host_field`, `self` (deps: T07, T08, T09, T05)
+- [x] **T11** Vital kinds (deps: T10)
 - [ ] **T12** Result model, merge rules, store (deps: T10, T11)
 - [ ] **T13** Scheduler: stagger, idle backoff, touch, reload swap (deps: T12)
 
