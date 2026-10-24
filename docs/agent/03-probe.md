@@ -28,9 +28,9 @@ type Health struct { Status Status; Code string; Stale bool }
 ```
 
 `Code` comes from one closed table in `probe/reasons.go` mapping a code to the short sentence shown
-to the user: `timeout`, `refused`, `bad_status`, `bad_json`, `missing_field`, `unexpected_value`,
-`unexpected_type`, `body_too_large`, `env_missing`, `host_unavailable`, `host_stale`,
-`unit_inactive`, `unit_not_reported`, `dns_rcode`, `bad_value`. The UI shows the sentence; logs show
+to the user: `timeout`, `refused`, `unreachable`, `bad_status`, `bad_json`, `missing_field`,
+`unexpected_value`, `unexpected_type`, `body_too_large`, `env_missing`, `host_unavailable`,
+`host_stale`, `unit_inactive`, `unit_not_reported`, `dns_rcode`, `off`, `bad_value`. The UI shows the sentence; logs show
 the code. Errors never carry response bodies or URLs with secrets (STANDARDS section 4).
 
 ## T08 `jsonpath` and `format`

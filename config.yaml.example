@@ -194,7 +194,7 @@ services:
 #   json_count     {url, where, field, equals, suffix?}
 #   json_sum       {url, where, fields, scale: bytes|none, unit?, decimals?, prefix?, suffix?}
 #   json_ratio_pct {url, numerator, denominator, suffix?, decimals?}
-#   host_field     {path, suffix?}
+#   host_field     {path, prefix?, suffix?, decimals?}
 #
 # Auth (any http probe or vital): {auth: {basic_env: [USER_VAR, PASS_VAR]}}
 #                                {auth: {bearer_env: TOKEN_VAR}}
