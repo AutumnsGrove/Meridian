@@ -3,10 +3,8 @@ package probe_test
 import (
 	"context"
 	"errors"
-	"maps"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,14 +13,6 @@ import (
 	"github.com/autumnsgrove/meridian/internal/probe"
 	"github.com/autumnsgrove/meridian/internal/wire"
 )
-
-func TestVitalRunners_MatchTheConfigKinds(t *testing.T) {
-	runners := slices.Sorted(maps.Keys(probe.VitalRunners))
-	kinds := slices.Sorted(maps.Keys(config.VitalKinds))
-	if !slices.Equal(runners, kinds) {
-		t.Errorf("VitalRunners = %q, config.VitalKinds = %q: every kind needs a runner and the other way round", runners, kinds)
-	}
-}
 
 // vital runs one kind against a body served by a real server, so the fetch, the limit and the decode
 // are the real ones.

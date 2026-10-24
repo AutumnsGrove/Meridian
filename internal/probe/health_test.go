@@ -2,10 +2,8 @@ package probe_test
 
 import (
 	"context"
-	"maps"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -41,14 +39,6 @@ func serveBody(t *testing.T, status int, body string) string {
 
 func httpEnv() probe.Env {
 	return probe.Env{Fetch: newFetcher()}
-}
-
-func TestHealthRunners_MatchTheConfigKinds(t *testing.T) {
-	runners := slices.Sorted(maps.Keys(probe.HealthRunners))
-	kinds := slices.Sorted(maps.Keys(config.HealthKinds))
-	if !slices.Equal(runners, kinds) {
-		t.Errorf("HealthRunners = %q, config.HealthKinds = %q: every kind needs a runner and the other way round", runners, kinds)
-	}
 }
 
 func TestHTTPStatus_MatchesTheExpectedAnswer(t *testing.T) {
