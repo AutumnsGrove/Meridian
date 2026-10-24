@@ -11,8 +11,10 @@ made, and a push that violates one fails CI. Read [STANDARDS.md](../STANDARDS.md
 - Directory skeleton from [README.md](README.md) "Layout", created lazily. At this point only:
   `cmd/meridian/main.go`, `cmd/meridian-host/main.go`, `internal/cli/` with a `Version()` function
   and test, `web/embed.go`, `scripts/`, `.githooks/`, `testdata/`.
-- `cmd/*/main.go` is a few lines: build args, call `cli.Main(os.Args[1:], os.Stdout, os.Stderr)`,
-  `os.Exit` with the returned code. `cli.Main` takes writers so it is testable.
+- `cmd/meridian/main.go` is a few lines: build args, call `cli.Main(os.Args[1:], os.Stdout,
+  os.Stderr)`, `os.Exit` with the returned code. `cli.Main` takes writers so it is testable.
+  `cmd/meridian-host/main.go` is a stub here and must not import `internal/cli`: the host binary is
+  standard library only (decision #56), so it gets its own dispatch in T22.
 - `web/embed.go` declares `//go:embed all:build` over an `embed.FS`. Commit `web/build/.gitkeep`
   (and adjust `.gitignore` to `web/build/*` plus `!web/build/.gitkeep`) so `go build` works before
   the frontend exists. The embed package exposes `FS() fs.FS` rooted at `build/`.
@@ -44,8 +46,8 @@ binaries works with an empty `web/build/`.
 | `e2e` | build web and binary, run Playwright (skipped under `--fast`) |
 | `security` | `govulncheck ./...`, `gitleaks detect`, `pnpm audit --prod`, `actionlint`, `shellcheck scripts/* deploy/**/*.sh` (skipped under `--fast`) |
 
-Missing tools are an error with an install hint, except in `--fast` mode where a missing optional
-tool (gitleaks) is a warning. Each group prints a one-line header so CI logs are navigable.
+Missing tools are an error with an install hint. The security group is skipped under `--fast`, so
+`gitleaks` is only required for the full run. Each group prints a one-line header so CI logs are navigable.
 
 `scripts/fuzz [duration]` discovers every `func FuzzXxx(` with `go test -list` and runs each with
 `-fuzz=^FuzzXxx$ -fuzztime=<duration>` (default 20s) in its own package. It exits non-zero on the
@@ -64,7 +66,7 @@ Rules to include (add rows, do not add branches):
 
 | Rule | Check |
 |---|---|
-| no service names in code | Collect every `id`, `name` and `url` host from `examples/homelab.yaml` (when it exists), plus the hard-coded words `polaris ivy bwmon adguard searxng vaultwarden unbound her-go`, and fail if any appears (case-insensitive, word-boundary) in a non-test `.go` file or in `web/src/**` outside test files. Tests and fixtures are exempt |
+| no service names in code | Collect every `id`, `name` and service URL host from `examples/homelab.yaml` (when it exists; loopback hosts and the project's own name are not service knowledge), plus the hard-coded words `polaris ivy bwmon adguard searxng vaultwarden unbound her-go`, and fail if any appears (case-insensitive, word-boundary) in a non-test `.go` file or in `web/src/**` outside test files. Tests and fixtures are exempt |
 | shell-free | no call to `exec.Command` / `CommandContext` whose first argument is `sh`, `bash`, `-c`-style shell, anywhere |
 | `os/exec` confinement | `os/exec` is imported only by `internal/hostexec` and `internal/hostprobe` (and `cmd/meridian-host`); tests exempt. Nothing in the container-side packages may import it |
 | no `systemctl`/`docker` strings in the container side | the literals `systemctl`, `docker.sock`, `tailscaled.sock` appear only in `internal/hostexec`, `internal/hostprobe`, `cmd/meridian-host` and docs |

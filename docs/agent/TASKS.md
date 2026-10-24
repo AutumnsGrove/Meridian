@@ -46,7 +46,7 @@ service, P3 = all targets, P4 = self-update and install.
 - [x] **T01** Repo scaffold: module, directories, thin mains, `web/embed.go`, lint config, pre-commit hook
 - [x] **T02** `scripts/check` and `scripts/fuzz` (deps: T01)
 - [x] **T03** Invariants test: the hard constraints as code (deps: T01)
-- [ ] **T04** CI workflows and Dependabot (deps: T02, T03)
+- [x] **T04** CI workflows and Dependabot (deps: T02, T03)
 
 ## Stage 2: Config and wire types ([02-config-and-wire.md](02-config-and-wire.md))
 
