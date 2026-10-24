@@ -82,3 +82,28 @@ func TestVersion_UnstampedBuildIsDev(t *testing.T) {
 		t.Errorf("Version() = %q, want %q", got, want)
 	}
 }
+
+// FuzzMain holds the dispatch contract for any argument: it never panics, the exit code is one of
+// the documented two, and the side the output lands on matches the code.
+func FuzzMain(f *testing.F) {
+	for _, seed := range []string{"version", "help", "-h", "--fast", "", "ünïcode", "x"} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, arg string) {
+		code, stdout, stderr := run(arg)
+
+		switch code {
+		case 0:
+			if stdout == "" {
+				t.Errorf("args %q: exit 0 wrote nothing to stdout (stderr %q)", arg, stderr)
+			}
+		case 2:
+			if stderr == "" {
+				t.Errorf("args %q: exit 2 wrote nothing to stderr", arg)
+			}
+		default:
+			t.Fatalf("args %q: exit code = %d, want 0 or 2", arg, code)
+		}
+	})
+}
