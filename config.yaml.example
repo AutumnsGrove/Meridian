@@ -192,7 +192,7 @@ services:
 #
 #   json_field     {url, path, prefix?, suffix?, decimals?}
 #   json_count     {url, where, field, equals, suffix?}
-#   json_sum       {url, where, fields, scale: bytes|none, unit?, decimals?}
+#   json_sum       {url, where, fields, scale: bytes|none, unit?, decimals?, prefix?, suffix?}
 #   json_ratio_pct {url, numerator, denominator, suffix?, decimals?}
 #   host_field     {path, suffix?}
 #
