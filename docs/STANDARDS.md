@@ -262,7 +262,8 @@ There is no review workflow in this phase of the project (decision #50).
 
 Fewer is better; each one is code we did not write and cannot fully audit.
 
-**Go allowlist**: `go.yaml.in/yaml/v3`, `github.com/spf13/cobra`, `github.com/charmbracelet/log`,
+**Go allowlist** (direct requirements; the indirect dependencies an allowed module brings are
+accepted): `go.yaml.in/yaml/v3`, `github.com/spf13/cobra`, `github.com/charmbracelet/log`,
 `golang.org/x/net/dns/dnsmessage`. `internal/hostexec`, `internal/hostprobe`, `internal/wire`,
 `internal/atomicfile` and `cmd/meridian-host` import **only the standard library** (enforced by the
 invariants test). Test-only helpers: none; use the standard library.
