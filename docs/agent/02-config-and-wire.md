@@ -23,9 +23,10 @@ browser. Read [ARCHITECTURE.md](../ARCHITECTURE.md) "Config" and `config.yaml.ex
 - `Field(path string) (any, bool)` on the snapshot for `host_field` probes: a dotted path into the
   JSON form (`tailscale.online`). Marshal once to a generic tree and call `jsonpath.Get`. This task
   therefore depends on T08; do T08 first. (Reuse over rewriting: no second path walker.)
-- `ID`: `NewID(now time.Time, rand io.Reader) string` produces a UUIDv7; `ParseID(string) (string,
-  error)` accepts only canonical lowercase UUID text (36 chars, hyphens at the right places,
-  version 4 or 7 nibble). No dependency.
+- `ID`: `NewID(now time.Time, rand io.Reader) (string, error)` produces a UUIDv7, returning the
+  random source's error rather than inventing an id; `ParseID(string) (string, error)` accepts only
+  canonical lowercase UUID text (36 chars, hyphens at the right places, version 4 or 7 nibble). No
+  dependency.
 
 **Tests first**: atomic write leaves either the old or the complete new content when the writer is
 interrupted (use a failing `io.Writer`/injected error between write and rename); snapshot parser

@@ -66,7 +66,7 @@ Rules to include (add rows, do not add branches):
 
 | Rule | Check |
 |---|---|
-| no service names in code | Collect every `id`, `name` and service URL host from `examples/homelab.yaml` (when it exists; loopback hosts and the project's own name are not service knowledge), plus the hard-coded words `polaris ivy bwmon adguard searxng vaultwarden unbound her-go`, and fail if any appears (case-insensitive, word-boundary) in a non-test `.go` file or in `web/src/**` outside test files. Tests and fixtures are exempt |
+| no service names in code | Collect every `id`, `name` and service URL host from `examples/homelab.yaml` (when it exists; loopback hosts and the project's own name are not service knowledge), plus the hard-coded words `polaris ivy bwmon adguard searxng vaultwarden unbound her-go`, and fail if any appears (case-insensitive, word-boundary) in a non-test `.go` file or in `web/src/**` outside test files. Tests, fixtures and the host-side packages (`cmd/meridian-host`, `internal/hostexec`, `internal/hostprobe`, `internal/wire`) are exempt |
 | shell-free | no call to `exec.Command` / `CommandContext` whose first argument is `sh`, `bash`, `-c`-style shell, anywhere |
 | `os/exec` confinement | `os/exec` is imported only by `internal/hostexec` and `internal/hostprobe` (and `cmd/meridian-host`); tests exempt. Nothing in the container-side packages may import it |
 | no `systemctl`/`docker` strings in the container side | the literals `systemctl`, `docker.sock`, `tailscaled.sock` appear only in `internal/hostexec`, `internal/hostprobe`, `cmd/meridian-host` and docs |

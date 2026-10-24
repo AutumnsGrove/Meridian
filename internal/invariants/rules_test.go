@@ -145,6 +145,11 @@ func qualifiedName(expr ast.Expr) (string, bool) {
 // the container-side code must not.
 var hostSidePackages = []string{"cmd/meridian-host", "internal/hostexec", "internal/hostprobe"}
 
+// serviceNameExempt are the packages that must name host-side facts: the host probe talks to systemd
+// and Tailscale, and the host snapshot contract carries their field names. Everywhere else, service
+// vocabulary stays in config.yaml (decision #38).
+var serviceNameExempt = []string{"cmd/meridian-host", "internal/hostexec", "internal/hostprobe", "internal/wire"}
+
 // serviceWords returns the lowercase words that must not appear in code: the hard-coded names this
 // project was built for, plus every id, name and URL host under services: in the example config.
 // Loopback hosts and the project's own name are not service knowledge and are left out.
@@ -241,8 +246,7 @@ func checkNoServiceNames(root string) error {
 		if !strings.HasSuffix(rel, ".go") && !strings.HasPrefix(rel, "web/src/") {
 			return nil
 		}
-		// The host binary is the one place that must name system units and the tailnet client.
-		if underAny(rel, hostSidePackages) {
+		if underAny(rel, serviceNameExempt) {
 			return nil
 		}
 		for lineNumber, line := range strings.Split(content, "\n") {
@@ -349,7 +353,7 @@ func checkHostLiterals(root string) error {
 
 // checkHostStdlib is the stdlib-only rule for the host binary and the packages it shares with it.
 func checkHostStdlib(root string) error {
-	hostPackages := []string{"cmd/meridian-host", "internal/atomicfile", "internal/hostexec", "internal/hostprobe", "internal/wire"}
+	hostPackages := []string{"cmd/meridian-host", "internal/atomicfile", "internal/hostexec", "internal/hostprobe", "internal/jsonpath", "internal/wire"}
 
 	return walkGoFiles(root, func(f goFile) error {
 		if !underAny(f.rel, hostPackages) {
