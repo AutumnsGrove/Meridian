@@ -34,6 +34,15 @@ func (store *Store) Snapshot() map[string]State {
 	return snapshot
 }
 
+// state returns one service's last result, as a copy. It is the zero state when the service has
+// never been polled.
+func (store *Store) state(id string) (State, bool) {
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	state, found := store.states[id]
+	return cloneState(state), found
+}
+
 // Retain drops every service whose id is not in ids, which is how a reload forgets removed services.
 func (store *Store) Retain(ids []string) {
 	keep := make(map[string]struct{}, len(ids))
