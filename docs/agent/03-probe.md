@@ -208,10 +208,12 @@ func (s *Scheduler) Refresh(ctx context.Context) (started bool) // manual; false
   health ok, `Merge`, `store.Update`, then wait `NextInterval` or a nudge. Per-probe timeout
   `poll.timeout`; the whole cycle is bounded at 6 seconds (decision: slow is reported as a
   timeout, not awaited).
-- `Touch` records the time and, if the oldest state is older than `maxAge` or the scheduler was
-  idling, nudges every goroutine. `EnsureFresh` is what the gateway calls on a page load: it nudges
-  stale services and waits for them to finish or `ctx` to expire (6s), so **a first load after an idle
-  period never shows a tile older than the load itself** (decision #35).
+- `Touch` records the viewer and, when the scheduler had been idling, nudges every goroutine: coming
+  back to the page ends the idle cadence at once. `EnsureFresh` is what the gateway calls on a page
+  load: it nudges the services whose result is older than `maxAge` and waits for them to finish or
+  `ctx` to expire (6s), so **a first load after an idle period never shows a tile older than the load
+  itself** (decision #35). A pass asked for while another one runs is taken next, so a nudge is never
+  lost.
 - `Reload` diffs by service id and probe config: unchanged services keep their goroutine and state;
   changed or new ones restart; removed ones stop and `Retain` drops them. No goroutine leaks:
   every goroutine ends when its context does.
