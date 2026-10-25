@@ -27,46 +27,57 @@ Anything that needs your hands (a secret, a GitHub setting, a [human] gate) or y
 
 ---
 
-## Last session: S3 (2026-10-24)
+## Last session: S4 (2026-10-25)
 
-Finished: T09, T10, T11 (ticked). `internal/probe` now has the fetch client (`fetch.go`), the reason
-code table (`reasons.go`), all six health kinds (`health.go`), the UDP DNS resolver (`dns.go`) and all
-five vital kinds (`vital.go`), plus `registry_test.go` and the fuzz targets `FuzzBuildRequest`,
-`FuzzHTTPJSON`, `FuzzDNSResponse`, `FuzzVitals` with committed crashers.
+Finished: T12, T13 (ticked). `internal/probe` now has the result model (`state.go`: `VitalState`,
+`State`, `VitalFresh`, `Merge`, `Derive`), the store (`store.go`), the scheduler (`scheduler.go`:
+`Clock`, `NextInterval`, `Stagger`, `NewScheduler`, `Start`, `Reload`, `Touch`, `EnsureFresh`,
+`Refresh`), the fuzz target `FuzzNextInterval`, and the stage acceptance test
+`TestScheduler_StageDone`. **Stage 3's "stage done" list holds.**
 
 Partial: none.
 
 ## Next
 
-Session **S4**, first task **T12** (result model, merge rules, store), then T13. Read
-`docs/agent/03-probe.md` from T12 and decisions #35 and #40 first.
+Session **S5**, first task **T14** (gateway skeleton), then T15. Read
+`docs/agent/04-gateway-and-web.md` from T14 and decisions #54, #57, #59 first. T15 consumes what S4
+built: `probe.Derive`, `probe.Store.Snapshot`, `Scheduler.Touch` then `EnsureFresh(ctx, maxAge)`.
 
 ## State of the tree
 
-Clean and green under the full `scripts/check` (go, security; web and e2e still skip). 42 commits
-unpushed.
+Clean and green under the full `scripts/check` (go, security; web and e2e still skip). 10 commits
+unpushed; `origin/main` is the S3 tip, whose CI run passed in 5m.
 
 ## Gotchas
 
-- `Env` carries `HostMaxAge` and `Now` as well as the three seams. A host probe with either missing
-  reports `unknown` / `host_unavailable`: deliberately fail-safe, so T13 must set both from
-  `HostStatus.MaxAge` or every unit and tailnet tile reads unknown.
-- Vitals signal reasons with sentinels (`ErrMissingField`, `ErrUnexpectedType`, `ErrUnexpectedValue`,
-  `ErrBadValue`, plus `ErrHostStale` / `ErrHostUnavailable`). `probe.CodeOf(err)` turns any of them,
-  and the fetch errors, into a reason code. Merge should use it, never match on message text.
-- `Probe.Has(key)` reads the `Set` map filled by the YAML unmarshaller, so a probe built in code must
-  fill `Set` (`keys(...)` helper in the tests) or `equals`/`field` are silently treated as absent.
-- The fetch client follows no redirects, caps bodies at `probe.MaxBodySize`, and reads credentials
-  from the getenv func at request time. Wrap it in `probe.Memo` once per refresh cycle, never across.
-- The stage doc's code list gained two codes: `unreachable` (a host that will not resolve) and `off`
-  (a reported boolean that is false). `off` is what a false `host_field` health returns.
-- `go.mod` now says `go 1.26.10` because govulncheck flagged 17 stdlib advisories in 1.26.1. CI
-  installs the toolchain from go.mod, so the directive is the single pin. Local `go` auto-downloads it.
-- `gocritic`'s `hugeParam` is disabled repo-wide: `config.Probe` travels by value through the runner
-  seam so a runner cannot mutate config.
+- `Merge`: a failing vital keeps the prior value **and** `At`; with no prior good reading it gets
+  `At = now` (never a zero time, so `/api/status` has no year-0001 age). When health is not `ok`,
+  vitals are untouched, including `Failing`: the growing age is the staleness marker.
+- `Derive` keys "never polled" off `CheckedAt.IsZero()`; any health status other than
+  ok/down/unknown derives `unknown`. It is the only place `degraded` and `disabled` arise.
+- `Store`'s zero value is usable (no constructor). `Update` and `Snapshot` both deep-copy the vital
+  slice; `Snapshot` is safe to hold. `state(id)` is the unexported single-entry read the poller uses.
+- The scheduler fills `Env.Now` and `Env.HostMaxAge` from the clock and `host_status.max_age`, but
+  **`Env.Host` (reading `host.json`) is the caller's job**, wired in T20. Leaving it nil makes every
+  host probe `unknown`/`host_unavailable`, which is fail-safe but looks like a bug.
+- Each cycle wraps `env.Fetch` in `Memo` **before** the health probe, so a vital on the same URL
+  reuses the health response. A new memo per cycle; never across.
+- Nudges carry a `poller.want` flag as well as a token: a pass asked for while another runs is taken
+  next, but a nudge that the cycle about to run already answers is not repeated. Tests that count
+  polls must therefore not use `EnsureFresh` to start things; `scheduler_loop_test.go` waits for the
+  pollers to park and advances the stagger instead.
+- The fake clock keeps abandoned timers registered, so count with `latestWake()` (the newest timer),
+  not the earliest, and wait on goroutines with `eventually()` (2s real deadline, yields, no sleep).
+  `waiting()` alone can be satisfied by an abandoned timer.
+- `Reload` compares `Disabled` and `Probes` with `reflect.DeepEqual`, and `Probes` carries the `Set`
+  map from the YAML unmarshaller: probes built in code without `Set` always look changed.
+- Stagger is `index*150ms` capped at 2s; `NextInterval` floors at 1s; a whole cycle is capped at 6s
+  (`cycleTimeout`) and each probe at `poll.timeout`.
 
 ## For the owner
 
-- Nothing is pushed. The first push to `main` is CI's first real run.
-- Cosmetic: `suffix: "% blocked"` in the worked example renders as `30 % blocked`, because
-  `format.Compose` always joins with a space. Change the config or the helper if that reads badly.
+- Nothing from S4 is pushed. `origin/main` is the S3 tip and its CI is green.
+- One open Dependabot PR (#3, the actions group) passed its checks. The npm and docker update runs
+  fail on purpose until `web/` (T16) and the Dockerfile (T23) exist; the go_modules one passed.
+- Cosmetic, still open: `suffix: "% blocked"` in the worked example renders as `30 % blocked`,
+  because `format.Compose` always joins with a space.
