@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log"
+	"reflect"
 	"sync"
 	"time"
 
@@ -63,6 +64,7 @@ type Scheduler struct {
 	log   *log.Logger
 
 	mu          sync.Mutex
+	parent      context.Context
 	poll        config.Poll
 	hostMaxAge  time.Duration
 	runs        map[string]*poller
@@ -76,6 +78,8 @@ type poller struct {
 	service  config.Service
 	index    int
 	nudge    chan struct{}
+	want     bool
+	cancel   context.CancelFunc
 	finished chan struct{}
 }
 
@@ -105,10 +109,60 @@ func NewScheduler(env Env, store *Store, clock Clock, logger *log.Logger) *Sched
 func (scheduler *Scheduler) Start(ctx context.Context, cfg *config.Config) {
 	scheduler.mu.Lock()
 	defer scheduler.mu.Unlock()
+	scheduler.parent = ctx
 	scheduler.setConfigLocked(cfg)
 	for index := range cfg.Services {
 		scheduler.startLocked(ctx, cfg.Services[index], index)
 	}
+}
+
+// Reload swaps the probe set for a new config. A service whose probes are unchanged keeps its
+// goroutine and its last result; a changed or new one restarts; a removed one stops and its state is
+// dropped. A disabled service is not polled, but its last result is kept for when it comes back.
+func (scheduler *Scheduler) Reload(cfg *config.Config) {
+	scheduler.mu.Lock()
+	defer scheduler.mu.Unlock()
+
+	scheduler.setConfigLocked(cfg)
+	if scheduler.parent == nil {
+		// Start has not run yet: remember the settings and let Start spawn everything.
+		return
+	}
+
+	wanted := make(map[string]config.Service, len(cfg.Services))
+	for index := range cfg.Services {
+		wanted[cfg.Services[index].ID] = cfg.Services[index]
+	}
+
+	for id, poller := range scheduler.runs {
+		service, kept := wanted[id]
+		if kept && !service.Disabled && samePolling(poller.service, service) {
+			poller.service = service
+			continue
+		}
+		poller.cancel()
+		delete(scheduler.runs, id)
+	}
+
+	for index := range cfg.Services {
+		service := cfg.Services[index]
+		if _, running := scheduler.runs[service.ID]; running {
+			continue
+		}
+		scheduler.startLocked(scheduler.parent, service, index)
+	}
+
+	ids := make([]string, 0, len(cfg.Services))
+	for index := range cfg.Services {
+		ids = append(ids, cfg.Services[index].ID)
+	}
+	scheduler.store.Retain(ids)
+}
+
+// samePolling reports whether a reload left alone the parts of a service that decide what is asked
+// and how often. A title or icon change is not a reason to restart a poller.
+func samePolling(previous, next config.Service) bool {
+	return previous.Disabled == next.Disabled && reflect.DeepEqual(previous.Probes, next.Probes)
 }
 
 // Touch records that a viewer exists right now. When the scheduler had backed off, it also asks for
@@ -181,15 +235,18 @@ func (scheduler *Scheduler) startLocked(ctx context.Context, service config.Serv
 		return
 	}
 
+	//nolint:gosec // the cancel is kept by the poller so a reload can stop it
+	runCtx, cancel := context.WithCancel(ctx)
 	poller := &poller{
 		id:       service.ID,
 		service:  service,
 		index:    index,
 		nudge:    make(chan struct{}, 1),
+		cancel:   cancel,
 		finished: make(chan struct{}),
 	}
 	scheduler.runs[service.ID] = poller
-	go scheduler.runLoop(ctx, poller)
+	go scheduler.runLoop(runCtx, poller)
 }
 
 // runLoop polls once, then waits for the interval the last touch asks for, a nudge, or the run
@@ -206,10 +263,22 @@ func (scheduler *Scheduler) runLoop(ctx context.Context, poller *poller) {
 			case <-scheduler.clock.After(wait):
 			}
 		}
+		scheduler.beginCycle(poller)
 		scheduler.pollOnce(ctx, poller)
-		scheduler.finishCycle(poller)
+		if scheduler.finishCycle(poller) {
+			// A pass was asked for while this one ran, so it is not the answer to that request.
+			wait = 0
+			continue
+		}
 		wait = NextInterval(scheduler.lastTouchTime(), scheduler.clock.Now(), scheduler.pollSettings())
 	}
+}
+
+// beginCycle marks the pass as started, which answers every pass wanted until now.
+func (scheduler *Scheduler) beginCycle(poller *poller) {
+	scheduler.mu.Lock()
+	defer scheduler.mu.Unlock()
+	poller.want = false
 }
 
 // pollOnce runs one service's whole cycle: health, then vitals only when it is healthy, then the
@@ -244,12 +313,14 @@ func (scheduler *Scheduler) pollOnce(ctx context.Context, poller *poller) {
 	scheduler.store.Update(poller.id, Merge(previous, health, vitals, scheduler.clock.Now()))
 }
 
-// finishCycle releases anyone waiting on this service's next result.
-func (scheduler *Scheduler) finishCycle(poller *poller) {
+// finishCycle releases anyone waiting on this service's next result, and reports whether another
+// pass was asked for while this one ran.
+func (scheduler *Scheduler) finishCycle(poller *poller) bool {
 	scheduler.mu.Lock()
 	defer scheduler.mu.Unlock()
 	close(poller.finished)
 	poller.finished = make(chan struct{})
+	return poller.want
 }
 
 func (scheduler *Scheduler) nudgeAll() {
@@ -260,9 +331,10 @@ func (scheduler *Scheduler) nudgeAll() {
 	}
 }
 
-// nudge asks a poller to skip its wait. A nudge that arrives while one is already pending is
-// dropped, so a burst of page loads costs one pass, not one per load.
+// nudge asks a poller for a pass, and must be called with the scheduler's lock held. A pass that is
+// already wanted is not asked for twice, so a burst of page loads costs one pass, not one per load.
 func nudge(poller *poller) {
+	poller.want = true
 	select {
 	case poller.nudge <- struct{}{}:
 	default:

@@ -438,3 +438,80 @@ func TestScheduler_StopsEveryGoroutineWhenTheContextEnds(t *testing.T) {
 
 	eventually(t, "the pollers to stop", func() bool { return runtime.NumGoroutine() <= baseline })
 }
+
+func TestScheduler_DoesNotPollADisabledService(t *testing.T) {
+	service := newTestService(t, http.StatusOK)
+	cfg := schedulerConfig(t, slowPoll, fmt.Sprintf(`  - id: off
+    name: Off
+    section: services
+    icon: activity
+    url: %s
+    disabled: true
+    probes:
+      health: {kind: http_status, url: "%s/health"}
+`, service.url, service.url))
+	scheduler, store, _ := startScheduler(t, httpEnv(), cfg, quietLogger())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	scheduler.EnsureFresh(ctx, 0)
+
+	if got := service.hits.Load(); got != 0 {
+		t.Fatalf("a disabled service was polled %d times, want 0", got)
+	}
+	if state, polled := store.Snapshot()["off"]; polled {
+		t.Fatalf("a disabled service has state %+v, want none", state)
+	}
+}
+
+func TestScheduler_ReloadKeepsUnchangedServicesAndDropsRemoved(t *testing.T) {
+	stable := newTestService(t, http.StatusOK)
+	removed := newTestService(t, http.StatusOK)
+	added := newTestService(t, http.StatusOK)
+	cfg := schedulerConfig(t, slowPoll, serviceSpec("stable", stable.url)+serviceSpec("removed", removed.url))
+	scheduler, store, clock := startScheduler(t, httpEnv(), cfg, quietLogger())
+	eventually(t, "the pollers to park", func() bool { return clock.waiting() >= 2 })
+	clock.Advance(probe.Stagger(1))
+	eventually(t, "both services to be polled", func() bool { return len(store.Snapshot()) == 2 })
+	spot := store.Snapshot()["stable"].CheckedAt
+	before := stable.hits.Load()
+
+	scheduler.Reload(schedulerConfig(t, slowPoll, serviceSpec("stable", stable.url)+serviceSpec("added", added.url)))
+
+	if _, found := store.Snapshot()["removed"]; found {
+		t.Fatal("the removed service kept its state")
+	}
+	// The new service parks on its stagger, then polls. That is the moment the unchanged one would
+	// also have been polled again if the reload had restarted it.
+	addedWake := clock.Now().Add(probe.Stagger(1))
+	eventually(t, "the added poller to park on its stagger", func() bool {
+		return clock.latestWake().Equal(addedWake)
+	})
+	clock.Advance(probe.Stagger(1))
+	eventually(t, "the added service to be polled", func() bool { return added.hits.Load() == 1 })
+	if got := stable.hits.Load(); got != before {
+		t.Fatalf("the unchanged service was polled %d times by the reload, want %d", got, before)
+	}
+	if got := store.Snapshot()["stable"].CheckedAt; !got.Equal(spot) {
+		t.Fatalf("the unchanged service was checked at %v, want its first poll at %v", got, spot)
+	}
+}
+
+func TestScheduler_ReloadRestartsAChangedProbe(t *testing.T) {
+	first := newTestService(t, http.StatusOK)
+	second := newTestService(t, http.StatusOK)
+	cfg := schedulerConfig(t, slowPoll, serviceSpec("moved", first.url))
+	scheduler, store, clock := startScheduler(t, httpEnv(), cfg, quietLogger())
+	eventually(t, "the poller to park", func() bool { return clock.waiting() == 1 })
+	if _, polled := store.Snapshot()["moved"]; !polled {
+		t.Fatal("the service was not polled before the reload")
+	}
+	before := first.hits.Load()
+
+	scheduler.Reload(schedulerConfig(t, slowPoll, serviceSpec("moved", second.url)))
+
+	eventually(t, "the new probe target to be polled", func() bool { return second.hits.Load() == 1 })
+	if got := first.hits.Load(); got != before {
+		t.Fatalf("the old target was polled %d times, want %d", got, before)
+	}
+}
