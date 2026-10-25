@@ -118,32 +118,40 @@ func eventually(t *testing.T, what string, condition func() bool) {
 	t.Fatalf("timed out waiting for %s", what)
 }
 
-// testService is one httptest service and the number of requests that reached it.
+// testService is one httptest service, what it answers, and the number of requests that reached it.
+// A status below zero makes it block until the probe's deadline cancels the request, which is what a
+// slow service does to a fetch client.
 type testService struct {
 	url    string
 	hits   atomic.Int64
 	status atomic.Int64
+	body   atomic.Value
 	hang   bool
 }
 
 func newTestService(t *testing.T, status int) *testService {
 	t.Helper()
 	service := &testService{hang: status < 0}
+	service.body.Store("ok")
 	service.status.Store(int64(status))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		service.hits.Add(1)
 		if service.hang {
-			// Block until the probe's deadline cancels the request, which is what a slow service
-			// does to a fetch client.
 			<-request.Context().Done()
 			return
 		}
 		w.WriteHeader(int(service.status.Load()))
-		_, _ = w.Write([]byte("ok"))
+		_, _ = w.Write([]byte(service.body.Load().(string)))
 	}))
 	t.Cleanup(server.Close)
 	service.url = server.URL
 	return service
+}
+
+// respond changes what the service answers, so a test can make it flap between passes.
+func (service *testService) respond(status int, body string) {
+	service.status.Store(int64(status))
+	service.body.Store(body)
 }
 
 // serviceSpec renders one service whose health is an http_status probe against url.

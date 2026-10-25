@@ -298,11 +298,13 @@ func (scheduler *Scheduler) pollOnce(ctx context.Context, poller *poller) {
 	cycleCtx, cancel := context.WithTimeout(ctx, cycleTimeout)
 	defer cancel()
 
+	// One memo per cycle, and it wraps the health probe too: a health probe and two vitals on the
+	// same endpoint cost one request, and the next cycle starts empty.
+	env.Fetch = memoFetcher(env.Fetch)
+
 	health := runHealth(cycleCtx, env, poll, poller.service.Probes.Health)
 	var vitals []VitalFresh
 	if health.Status == StatusOK {
-		// One memo per cycle: a health probe and two vitals on the same endpoint cost one request.
-		env.Fetch = memoFetcher(env.Fetch)
 		vitals = runVitals(cycleCtx, env, poll, poller.service.Probes.Vitals)
 	}
 	if ctx.Err() != nil {
