@@ -60,7 +60,7 @@ service, P3 = all targets, P4 = self-update and install.
 - [x] **T09** Fetch client: limits, no redirects, auth, redaction (deps: T06)
 - [x] **T10** Health kinds: `http_status`, `http_json`, `dns`, `host_unit`, `host_field`, `self` (deps: T07, T08, T09, T05)
 - [x] **T11** Vital kinds (deps: T10)
-- [ ] **T12** Result model, merge rules, store (deps: T10, T11)
+- [x] **T12** Result model, merge rules, store (deps: T10, T11)
 - [ ] **T13** Scheduler: stagger, idle backoff, touch, reload swap (deps: T12)
 
 ## Stage 4: Gateway and web ([04-gateway-and-web.md](04-gateway-and-web.md))
