@@ -170,10 +170,12 @@ Rules (each is a test):
 2. If health is `ok` and **any** vital is failing, status is `degraded` (decision #40's rationale:
    a missing vital must not make the page lie about availability).
 3. A failing vital keeps its **last good value and timestamp** and sets `Failing`; the UI renders it
-   dimmed with its age (stale-while-error). With no prior value, `Value` is empty and `Failing`
-   true.
-4. When health is not `ok`, vitals are **not fetched** that cycle; their last values stay, marked
-   stale.
+   dimmed with its age (stale-while-error). With no prior value, `Value` is empty, `Failing` is true
+   and `At` is the time of the failed check, so the wire never carries a zero timestamp.
+4. When health is not `ok`, vitals are **not fetched** that cycle; their last values stay exactly
+   as they were, and the growing age of `at` is what marks them stale. `failing` is left alone: we
+   did not ask, so we do not claim the vital failed, and the server adds no per-vital stale flag to
+   the contract because the age already says it.
 5. `Merge` never mutates its arguments and never produces `ok` from a `down` health.
 6. Vitals are matched to previous values by `Label` **and** position so a reload that renames a label
    starts fresh.
