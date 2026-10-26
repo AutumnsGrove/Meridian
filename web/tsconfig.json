@@ -3,6 +3,12 @@
 	"include": ["src", "test", "*"],
 	"exclude": ["src/service-worker"],
 	"compilerOptions": {
+		// #lib is a Node subpath import for Vite (package.json "imports"), which TypeScript does not
+		// follow for extensionless targets, so the same mapping is repeated here for the type checker.
+		"paths": {
+			"#lib": ["./src/lib"],
+			"#lib/*": ["./src/lib/*"]
+		},
 		"allowJs": true,
 		"checkJs": true,
 		"esModuleInterop": true,
