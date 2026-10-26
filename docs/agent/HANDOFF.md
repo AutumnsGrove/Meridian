@@ -27,55 +27,49 @@ Anything that needs your hands (a secret, a GitHub setting, a [human] gate) or y
 
 ---
 
-## Last session: S6 (2026-10-25)
+## Last session: S7 (2026-10-25)
 
-Finished: T16 (web scaffold) and T17 (launcher UI), both ticked. `web/` is a SvelteKit 3 SPA with
-pnpm, tokens and self-hosted Lexend, ESLint/Prettier/svelte-check/Vitest, and a launcher that renders
-`/api/status`: validator, poller, tiles, status marks, search, banners. 116 web tests. `scripts/check`
-(full: go, fuzz, web, security; e2e still skips) is green.
+Finished: T18, ticked. `/control` lists every service with a control block: state pill, description,
+one refused button per action with the reason on `aria-describedby`, a "Control plane not installed
+on this box" note, a disabled reboot card, and `#<id>` marking and scrolling to a row once data
+arrives. 154 web tests. T19 did **not** run: it starts the real binary with `meridian run` (T20), so
+the owner moved it to S9 (decision #74).
 
 Partial: none.
 
 ## Next
 
-Session **S7**, first task **T18** (`/control` placeholder: rows, state pills, disabled actions with
-their reasons, `#<id>` targeting, emergency reboot section). Read `docs/agent/04-gateway-and-web.md`
-from T18, then T19. Decision #73 (a tile is one target) already shapes the `restart →` link T18's
-hash targeting serves.
+Session **S8**, first task **T20** (`meridian run`, signals, SIGHUP reload, healthcheck, version),
+then T21 (`doctor`). Read `docs/agent/05-cli-and-deploy.md` from T20 and decision #41. `internal/cli`
+is still a hand-rolled two-command switch, and cobra and `charmbracelet/log` are allowlisted but not
+dependencies yet, so T20 adds the first two lines to `go.mod`.
 
 ## State of the tree
 
-Clean and green under the full `scripts/check`. 10 commits unpushed; `origin/main` is still the S3 tip.
+Clean and green under the full `scripts/check`. 15 commits unpushed; `origin/main` is still the S3 tip.
 
 ## Gotchas
 
-- **It is SvelteKit 3, not 5.** Config lives in `web/vite.config.ts` via `sveltekit({ adapter, csp })`;
-  there is no `svelte.config.js`, and `$lib` is gone in favour of `#lib`. `#lib` is declared twice and
-  the two must stay in sync: `web/package.json` `imports` (Vite/rolldown) and `web/tsconfig.json`
-  `paths` (the type checker, which does not add extensions to subpath imports).
-- `vite.config.ts` sets `ssr.noExternal: ['cookie']`: Kit externalises its own dependencies and
-  adapter-static imports the SSR output once to analyse routes, while pnpm does not link Kit's deps
-  into the app. Removing it breaks `pnpm build` (locally a stray `/Users/autumn/node_modules/cookie`
-  made it fail loudly instead).
-- `pnpm build` empties `web/build`, so the build script re-creates the tracked `.gitkeep`
-  (`vite build && touch build/.gitkeep`). Keep that, or every build leaves a deleted file behind.
-- TypeScript is pinned to 6.x because `svelte-check` peers `^5 || ^6` and the registry's latest is 7.
-  A Dependabot bump to 7 will break the peer range; it needs a decision, not a merge.
-- Vitest needs `resolve.conditions: ['browser', 'node']` in `web/vitest.config.ts`: without `browser`
-  Svelte resolves its server build and `mount()` throws, without `node` Vite cannot resolve
-  `node:module`. Component tests pass props directly: `render(Tile, { service, now })`.
-- Golden files are read through `web/test/golden.ts` from `process.cwd()/../testdata/api`
-  (`import.meta.url` is not a file URL under jsdom). Its `serviceNamed` helper is how every component
-  test gets the portable fixture, so no component test names a real service.
-- `svelte/no-navigation-without-resolve` is off in `web/eslint.config.js`: the gateway serves the SPA
-  at `/` with no base path. The same block declares `window`/`document`, because eslint-plugin-svelte's
-  config no longer brings browser globals.
-- Nothing has been looked at in a real browser yet: T19's Playwright suite is the first time. The
-  launcher's only buttons are the search engines; keep it that way (T18 adds disabled ones).
+- Both pages take their data from `createLiveStatus()` (`web/src/lib/state/live.svelte.ts`): the last
+  good `PollState`, the clock its ages use, and a `start` for `onMount`. It is `.svelte.ts` because
+  it needs `$state`.
+- The control page's buttons are refused by `rowActions` (`web/src/lib/state/control.ts`): a button
+  with a non-empty `reason` or `detail` is disabled and nothing else decides. T30 enables an action
+  by clearing the reason, not by adding a flag.
+- The contract has no criticality, uptime or reboot-capability field, so a row shows name, pill and
+  description, and the reboot card takes its reason from `control.reason`. T25/T26 add those types.
+- Hash targeting is an `$effect` keyed on the loaded status plus a `fragment` state updated by
+  `hashchange`. jsdom has no `scrollIntoView`, so the page test stubs `Element.prototype`.
+- Still true from S6: SvelteKit 3 config lives in `web/vite.config.ts`; `#lib` is declared twice
+  (`web/package.json` and `web/tsconfig.json`); `ssr.noExternal: ['cookie']` is load-bearing for
+  `pnpm build`; the build script re-creates the tracked `build/.gitkeep`; TypeScript stays on 6.x;
+  Vitest needs `conditions: ['browser','node']`; goldens are read via `web/test/golden.ts`.
+- `scripts/check e2e` still skips itself: there is no `web/playwright.config.ts` until S9, and the
+  Playwright browsers have never been installed.
 
 ## For the owner
 
-- Still nothing pushed since S3: 10 commits, CI green on the S3 tip only.
-- Dependabot's npm job now has a `web/` to update; its first run will try the TypeScript 7 bump above.
-- `pnpm e2e` does not work yet (no Playwright config until T19); browsers will need
-  `pnpm exec playwright install` once. `scripts/check e2e` skips itself until then.
+- 15 commits unpushed since S3, so CI has only seen the S3 tip. Push when it suits you.
+- Dependabot's npm job now has a `web/` to update; its TypeScript 7 bump will break the
+  `svelte-check` peer range and needs a decision, not a merge.
+- Nothing has been looked at in a real browser yet. The Playwright suite in S9 is the first time.
