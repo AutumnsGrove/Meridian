@@ -53,6 +53,11 @@ var hardConstraints = []struct {
 		check:    checkDependencyAllowlist,
 	},
 	{
+		name:     "doctor is read only (when present)",
+		fixtures: []string{"doctor-read-only"},
+		check:    checkDoctorReadOnly,
+	},
+	{
 		name:     "no authentication surface (when present)",
 		fixtures: []string{"auth-surface"},
 		check:    checkNoAuthSurface,

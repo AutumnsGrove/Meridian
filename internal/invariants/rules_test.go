@@ -443,6 +443,53 @@ func moduleAllowed(module string, allowed []string) bool {
 	return false
 }
 
+// checkDoctorReadOnly is T21: doctor explains the config and the world, it never changes either. It
+// must not import the control package (which would let it enqueue an action) and must not call
+// anything that writes to disk.
+func checkDoctorReadOnly(root string) error {
+	if _, err := os.Stat(filepath.Join(root, "internal", "doctor")); errors.Is(err, fs.ErrNotExist) {
+		return nil // not built yet
+	}
+
+	writers := map[string]bool{
+		"os.WriteFile": true, "os.Create": true, "os.OpenFile": true,
+		"os.Remove": true, "os.RemoveAll": true, "os.Rename": true,
+		"os.Mkdir": true, "os.MkdirAll": true, "atomicfile.Write": true,
+	}
+
+	return walkGoFiles(root, func(f goFile) error {
+		if !strings.HasPrefix(f.rel, "internal/doctor/") {
+			return nil
+		}
+		for _, imported := range f.file.Imports {
+			path, err := strconv.Unquote(imported.Path.Value)
+			if err != nil {
+				continue
+			}
+			if strings.HasSuffix(path, "/internal/control") || strings.HasSuffix(path, "/internal/atomicfile") {
+				return fmt.Errorf("%s imports %s; doctor is read only (T21)", f.rel, path)
+			}
+		}
+		var violation error
+		ast.Inspect(f.file, func(node ast.Node) bool {
+			if violation != nil {
+				return false
+			}
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			name, ok := qualifiedName(call.Fun)
+			if !ok || !writers[name] {
+				return true
+			}
+			violation = fmt.Errorf("%s: %s writes; doctor is read only (T21)", f.pos(call), name)
+			return false
+		})
+		return violation
+	})
+}
+
 // checkNoAuthSurface is decision #10: the gateway and control packages never grow authentication.
 func checkNoAuthSurface(root string) error {
 	terms := []string{"cookie", "csrf", "login", "password", "session"}
