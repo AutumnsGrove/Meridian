@@ -12,7 +12,11 @@ const csp: NonNullable<SvelteKitOptions>['csp'] = {
 	directives: {
 		'default-src': ['self'],
 		'script-src': ['self'],
-		'style-src': ['self'],
+		// SvelteKit's route announcer (a live region for screen readers) is created with a hardcoded
+		// inline `style` attribute, which a hash-mode policy blocks on every page load: an error in the
+		// console and a live region that is not clipped. Scripts stay hash-only, which is the part that
+		// matters; the app sets no inline styles of its own (decision #77).
+		'style-src': ['self', 'unsafe-inline'],
 		'font-src': ['self'],
 		'img-src': ['self', 'data:'],
 		'connect-src': ['self'],
