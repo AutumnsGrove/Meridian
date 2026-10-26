@@ -1,0 +1,133 @@
+{
+  "generated_at": "2026-10-25T12:00:00Z",
+  "config": {
+    "ok": true,
+    "loaded_at": "2026-10-25T11:00:00Z",
+    "error": ""
+  },
+  "summary": {
+    "up": 4,
+    "total": 4
+  },
+  "search": {
+    "buttons": [
+      {
+        "label": "Search the web",
+        "url_template": "https://search.example.org/?q={q}"
+      }
+    ]
+  },
+  "control": {
+    "available": false,
+    "reason": "control plane not installed"
+  },
+  "host": {
+    "at": "2026-10-25T11:59:40Z",
+    "age_s": 20,
+    "stale": false
+  },
+  "sections": [
+    {
+      "id": "media",
+      "title": "Media",
+      "services": [
+        {
+          "id": "jellyfin",
+          "name": "Jellyfin",
+          "description": "films and shows",
+          "icon": {
+            "image": "/icons/jellyfin.png"
+          },
+          "url": "https://films.example.org",
+          "status": "ok",
+          "reason": "",
+          "checked_at": "2026-10-25T11:59:57Z",
+          "vitals": [],
+          "control": null
+        },
+        {
+          "id": "metrics",
+          "name": "Metrics",
+          "description": "raw host values, no HTTP",
+          "icon": {
+            "lucide": "activity"
+          },
+          "url": "",
+          "status": "ok",
+          "reason": "",
+          "checked_at": "2026-10-25T11:59:55Z",
+          "vitals": [
+            {
+              "label": "peers",
+              "value": "3 online",
+              "at": "2026-10-25T11:59:55Z",
+              "age_s": 5,
+              "failing": false
+            }
+          ],
+          "control": {
+            "target": "metrics",
+            "actions": [
+              "start",
+              "restart",
+              "stop"
+            ],
+            "update_disabled_reason": "",
+            "dns": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "dev",
+      "title": "Development",
+      "services": [
+        {
+          "id": "gitea",
+          "name": "Gitea",
+          "description": "source, issues, reviews",
+          "icon": {
+            "lucide": "git-branch"
+          },
+          "url": "https://git.example.org",
+          "status": "degraded",
+          "reason": "it did not answer in time",
+          "checked_at": "2026-10-25T11:59:58Z",
+          "vitals": [
+            {
+              "label": "version",
+              "value": "1.22.0",
+              "at": "2026-10-25T11:51:00Z",
+              "age_s": 540,
+              "failing": true
+            }
+          ],
+          "control": {
+            "target": "gitea",
+            "actions": [
+              "start",
+              "stop",
+              "restart"
+            ],
+            "update_disabled_reason": "",
+            "dns": false
+          }
+        },
+        {
+          "id": "backup",
+          "name": "Backup daemon",
+          "description": "no web surface at all",
+          "icon": {
+            "lucide": "database"
+          },
+          "url": "",
+          "status": "ok",
+          "reason": "",
+          "checked_at": "2026-10-25T11:59:56Z",
+          "vitals": [],
+          "control": null
+        }
+      ]
+    }
+  ]
+}
