@@ -84,7 +84,7 @@ service, P3 = all targets, P4 = self-update and install.
 ## Stage 6: Control plane ([06-control.md](06-control.md))
 
 - [x] **T25** Control wire types and validators (deps: T05)
-- [ ] **T26** Container side: enqueue, results, status, `/api/control` (deps: T25, T14)
+- [x] **T26** Container side: enqueue, results, status, `/api/control` (deps: T25, T14)
 - [ ] **T27** `meridian-host exec` core: allowlist, validation, results, audit, prune (deps: T25)
 - [ ] **T28** Runners: systemd, compose, container, host, run-as, timeouts (deps: T27)
 - [ ] **T29** DNS auto-restore and cancel, reboot, Meridian self-restart (deps: T28)

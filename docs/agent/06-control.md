@@ -48,7 +48,8 @@ type AuditLine struct { At time.Time; ID, Action, Target string; OK bool; Code s
 - Refusal/result **codes** (closed table with the user sentence for each): `bad_request`, `bad_id`,
   `bad_action`, `bad_target`, `unknown_target`, `action_not_allowed`, `missing_ack`, `bad_ack`, `stale`,
   `replay`, `coalesced`, `queue_full`, `timeout`, `exec_failed`, `not_active_after`, `restore_failed`,
-  `bad_ref`, `internal`.
+  `bad_ref`, `internal`, and `unavailable` for the container's own "no control plane here" answer
+  (decision #82).
 - `ValidateRequest(Request, now time.Time) error`: **structure only** (field grammar, id format, ref
   rules, `requested_at` not more than 5s in the future). Returns `*Refusal{Code}`; policy against the
   allowlist is `hostexec`'s job.
