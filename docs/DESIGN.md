@@ -10,7 +10,7 @@ viewport before a 1440px one.
 
 ## Tokens
 
-Raw values live in one file (`web/src/app.css`), and only there.
+Raw values live in one file (`web/src/lib/styles/tokens.css`), and only there.
 
 ```css
 :root {

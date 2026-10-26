@@ -213,7 +213,8 @@ read-only root filesystem, all capabilities dropped, `no-new-privileges`, pinned
 - Accessibility is tested, not hoped for: every interactive element is at least 44x44 CSS px and has
   a visible focus ring (checked in Playwright at 390x844 with `axe`), every status carries a
   non-colour mark, and the page works with the keyboard.
-- Content security policy comes from SvelteKit's `kit.csp` (hash mode); no inline event handlers,
+- Content security policy comes from the `csp` option of SvelteKit's Vite plugin (hash mode); no
+  inline event handlers,
   no `{@html}` of anything from the API.
 - Copy rules from CLAUDE.md apply to every user-facing string: no em dashes, no exclamation marks,
   second person, present tense.
@@ -275,7 +276,9 @@ invariants test). Test-only helpers: none; use the standard library.
 **Web allowlist**: `svelte`, `@sveltejs/kit`, `@sveltejs/adapter-static`, `vite`,
 `@fontsource-variable/lexend`, `@lucide/svelte`; dev only: `typescript`, `svelte-check`, `eslint`
 (+ svelte plugin), `prettier` (+ svelte plugin), `vitest`, `@testing-library/svelte`, `jsdom`,
-`@playwright/test`, `@axe-core/playwright`, `fast-check`.
+`@playwright/test`, `@axe-core/playwright`, `fast-check`. The toolchain's required companions are
+allowed with the package that needs them (decision #72): `@sveltejs/vite-plugin-svelte`,
+`typescript-eslint`, `@eslint/js`, `@testing-library/dom`.
 
 Adding anything else needs a new decision entry saying what it replaces and why the standard
 library or existing dependency is not enough. Versions are pinned by the lockfiles; upgrades arrive

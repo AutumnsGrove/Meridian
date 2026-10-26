@@ -119,12 +119,14 @@ config order.
 
 ## T16 Web scaffold
 
-`web/` with SvelteKit 5 and Svelte 5 runes, TypeScript strict, pnpm.
+`web/` with SvelteKit 3 (Svelte 5 runes), TypeScript strict, pnpm. SvelteKit 3 takes its whole
+config from the Vite plugin: there is no `svelte.config.js`, `tsconfig.json` extends `$app/tsconfig`,
+and `$lib` is replaced by the `#lib` subpath import declared in `package.json`.
 
-- `svelte.config.js`: `adapter-static` with `fallback: 'index.html'`, `kit.csp` in hash mode, output
-  to `web/build`. `src/routes/+layout.ts`: `ssr = false; prerender = false`. It is a SPA served by Go.
-- `vite.config.ts`: dev proxy for `/api`, `/icons`, `/healthz` to `127.0.0.1:8891`. Vitest with
-  `jsdom` and `@testing-library/svelte`.
+- `vite.config.ts`: `sveltekit({ adapter: adapter({ fallback: 'index.html' }), csp })` with
+  `adapter-static`, the CSP in hash mode, output to `web/build`, and the dev proxy for `/api`,
+  `/icons`, `/healthz` to `127.0.0.1:8891`. `src/routes/+layout.ts`: `ssr = false; prerender = false`.
+  It is a SPA served by Go.
 - `src/lib/styles/tokens.css`: the tokens from DESIGN.md "Tokens", copied verbatim, plus reset, focus
   ring, `color-scheme: dark`, reduced-motion rules, the 44px touch-target utility. Self-hosted Lexend
   via `@fontsource-variable/lexend`. No external requests of any kind.
