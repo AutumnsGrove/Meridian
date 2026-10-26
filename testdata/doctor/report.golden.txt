@@ -1,0 +1,19 @@
+meridian doctor
+
+config
+  ok   allowlist   2 targets [allowlist_ok]
+  warn allowlist   target "unused" in the allowlist is not in the config [target_unused]
+                   hint: remove it from targets.json, or add the service that would use it
+
+Alpha
+  ok   environment no credentials named [no_credentials]
+  ok   url         https://alpha.example.org [url_ok]
+  ok   health      http_status http://127.0.0.1:8096/health [probe_ok]
+  fail version     the field you asked for is missing [missing_field]
+                   hint: check the path against what the service actually sends
+
+Beta
+  warn service     disabled in the config, so nothing was probed [disabled]
+                   hint: remove disabled: true when the service should be polled again
+
+1 failing check. Fix it, then run meridian doctor again.
