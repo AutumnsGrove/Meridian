@@ -378,13 +378,9 @@ func DecodeAuditLine(line []byte) (AuditLine, error) {
 	return audit, nil
 }
 
-// decodeStrict reads at most limit bytes and decodes exactly one JSON value from them. The limit is
-// enforced before decoding so a huge document costs nothing.
-func decodeStrict(reader io.Reader, limit int, target any) error {
-	data, err := io.ReadAll(io.LimitReader(reader, int64(limit)+1))
-	if err != nil {
-		return err
-	}
+// DecodeStrict decodes exactly one JSON value from data: no unknown fields, no trailing data, and at
+// most limit bytes. Every untrusted document in the project is read through it.
+func DecodeStrict(data []byte, limit int, target any) error {
 	if len(data) > limit {
 		return fmt.Errorf("%d bytes exceeds the %d byte cap", len(data), limit)
 	}
@@ -398,4 +394,17 @@ func decodeStrict(reader io.Reader, limit int, target any) error {
 		return errors.New("trailing data after the value")
 	}
 	return nil
+}
+
+// decodeStrict reads at most limit bytes and decodes one JSON value from them, so a huge document
+// costs nothing to refuse.
+func decodeStrict(reader io.Reader, limit int, target any) error {
+	data, err := io.ReadAll(io.LimitReader(reader, int64(limit)+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > limit {
+		return fmt.Errorf("%d bytes exceeds the %d byte cap", len(data), limit)
+	}
+	return DecodeStrict(data, limit, target)
 }
