@@ -197,6 +197,11 @@ or an error) and on `buildSearchURL`.
 The page is built from the same data and components that T30 will make live, so the layout and its
 failure modes are exercised before they can do anything (PLAN Phase 1).
 
+The row shows the name, the state pill and the description, because that is what `/api/status`
+carries: the mockup's criticality word and "running 12d" need fields the contract does not have until
+the control wire types land (T25/T26). The reboot card is always visible and takes its reason from
+the same `control` block as the rows.
+
 **Tests first**: with `available: false` no button is enabled; hash targeting; an update button with
 `update_disabled_reason` shows the reason; no button in the DOM is a `<form>` submit.
 
