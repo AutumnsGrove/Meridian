@@ -27,64 +27,68 @@ Anything that needs your hands (a secret, a GitHub setting, a [human] gate) or y
 
 ---
 
-## Last session: S9 (2026-10-26)
+## Last session: S10 (2026-10-26)
 
-Finished: T19, ticked. `web/playwright.config.ts` runs the suite against `dist/meridian`: `globalSetup`
-picks two free ports, writes a copy of the portable fixture that names them, writes and refreshes the
-`host.json` the host-side probe would write, builds and starts `testdata/stub` (one listener, a flip
-endpoint per service), starts the binary, and warms the first poll. Two projects (390x844, 1440x900),
-one worker. 28 tests: both sections, 44px targets, sideways scroll at 390 and at 200% zoom, search
-buttons and Enter, tab order with focus rings, axe on `/` and `/control`, a stub service going down
-into a `restart →` link and a highlighted row, a stale vital dimmed by moving the browser clock, and
-the page's global checks (no console noise, no off-origin request, security headers, CSP).
+Finished: T22, T23, both ticked.
+
+- **T22** `meridian-host probe` exists end to end. `internal/hostfile` reads the files the host trusts
+  (regular file, expected uid, not group/other-writable, size cap, `O_NOFOLLOW`) and is the package
+  T27's `loadTrusted` should reuse. `wire.IsUnitName` is the one unit-name grammar. `internal/hostprobe`
+  collects unit states from `systemctl show`, the tailnet from `tailscale status --json`, uptime and
+  load from `/proc`, merges `observe.json` + the allowlist's `unit` fields, and writes the snapshot
+  through `atomicfile`; a source that fails is omitted, never guessed. `cmd/meridian-host` dispatches
+  `probe`; `deploy/systemd/meridian-probe.{service,timer}` are the timer (oneshot, deploy user,
+  sandboxed, `@DEPLOY_USER@`/`@STATUS_DIR@` for the installer).
+- **T23** `Dockerfile` (Node build, Go cross-compile from `$BUILDPLATFORM`, distroless static nonroot,
+  every base pinned by digest), `.dockerignore`, `deploy/docker-compose.yml` + `deploy/.env.example`,
+  a compose invariants rule in `internal/invariants` with three failing fixtures, a `ci.yml` `image`
+  job (buildx both arches, Trivy, smoke) and `scripts/smoke-image`.
 
 Partial: none.
 
 ## Next
 
-Session **S10**, first task **T22** (`meridian-host probe` and the `host.json` timer units). Read
-`docs/agent/05-cli-and-deploy.md` from T22 and `docs/CONTROL.md`. The `wire` snapshot type, its strict
-parse and the `host.json` shape are already done; what is missing is the stdlib-only command that
-writes that file and the systemd units around it.
+Session **S11**, first task **T25** (control wire types and validators). Read `docs/agent/06-control.md`
+from T25 and `docs/CONTROL.md` (the implementation notes at the top matter: `inbox/{tmp,queue}`,
+`outbox/results`, decision #62-#67).
 
 ## State of the tree
 
-Clean and green under the full `scripts/check`. 41 commits unpushed; `origin/main` is the S3 tip, so
-CI has still never run the e2e job.
+Clean and green under the full `scripts/check` (28 e2e tests, fuzz pass, security). 53 commits
+unpushed; `origin/main` is still the S3 tip, so CI has never run any of it.
 
 ## Gotchas
 
-- The first real browser run paid for itself: it found a CSP violation on every load (SvelteKit's
-  route announcer has a hardcoded `style` attribute, so `style-src` now allows inline and
-  `script-src` stays hashed, #77), no `h1`, and two axe rules. The calls-shape changes are decisions
-  #75-#78; read them before touching tiles, CSP or the search fixture.
-- A tile's accessible name is its **content** now (status word and vital labels are visually hidden
-  text). There is no `tileLabel` and no `aria-label`; do not add one back without re-running axe.
-- The e2e's fixture copy is made by `replaceAll` on four exact strings in
-  `testdata/portable/config.yaml`. Editing that fixture means editing `global-setup.ts`; the setup
-  throws if a string it needs is gone. The metrics tile's health is `tailscale.online` because a
-  `host_field` health probe without `equals` reads a boolean (S9 fixed a fixture that could never be
-  healthy).
-- Playwright state lives at `$TMPDIR/meridian-e2e/state.json`; globalSetup builds the stub with `go
-  build` and expects `dist/meridian` (which `scripts/check e2e` builds). A local machine needs
-  `cd web && pnpm exec playwright install chromium` once.
-- The flip test waits a real poll cycle (~20s, 31s wall): do not shorten it into a reload. `workers:
-  1` is deliberate, because one binary and one stub are shared.
-- `@types/node` is declared now; `svelte-check` had been passing off a stray copy above the repo.
-- Still true: SvelteKit 3 configures itself from `vite.config.ts`; `#lib` is declared in
-  `web/package.json` and `web/tsconfig.json`; `ssr.noExternal: ['cookie']` is load-bearing; the build
-  re-creates `build/.gitkeep`; TypeScript stays 6.x; Vitest needs `conditions: ['browser','node']`;
-  goldens are read via `web/test/golden.ts`; `cli.Main` takes a stdin reader for `doctor --allowlist -`.
-- The full fuzz pass found a real bug in T14's host guard while S9 closed (`[hub.example.org]`
-  matched the allowlist entry). If a fuzz job goes red, commit the crasher under
-  `internal/gateway/testdata/fuzz/` and fix it; do not re-run until green.
+- **The image job has never run.** Locally `docker build` succeeded and
+  `docker buildx build --platform linux/amd64,linux/arm64` produced both; the loaded image answered
+  `/healthz` through `docker exec … /meridian healthcheck` and served `/api/status` plus the SPA (200,
+  `text/html`) when queried from a curl container sharing its netns. `scripts/smoke-image` itself
+  could **not** run on macOS: Docker Desktop gives the container the VM's network namespace, so the
+  app's loopback is not the caller's. It is Linux-only (CI, the box); its first real run is CI.
+- The compose rule rejects these substrings anywhere in the file, comments included: `docker.sock`,
+  `/etc/meridian`, `privileged:`, `ports:`, `pid: host`, `network_mode: bridge`. Watch wording.
+- `wire.IsUnitName` now accepts `.path` (decision #79), because T31 puts `meridian-control.path` in
+  `observe.json`. Anything else is dropped from the probe's watch list with a log line.
+- The probe omits a unit when `systemctl show` exits non-zero, and leaves `since` zero when the
+  timestamp will not parse; the timestamp is parsed in the local zone because systemd prints it so.
+  macOS has no `/proc`: never call `hostprobe.RealDeps()` from a test, inject the readings.
+- `hostfile.Read` takes the expected owner, so tests can own their fixtures. `probe` passes uid 0;
+  the executor must too.
+- Base images are pinned by digest; take a new one from the registry's **index** manifest (the build
+  needs both arches), not from a tag.
+- Still true: the e2e fixture copy is made by `replaceAll` on four exact strings, so editing
+  `testdata/portable/config.yaml` means editing `global-setup.ts`; a tile's accessible name is its
+  content (no `aria-label`); skip links and the flip test's ~31s wait are deliberate; `workers: 1`.
+- Still true: SvelteKit 3 configures itself from `vite.config.ts`; `#lib` is a package subpath;
+  `ssr.noExternal: ['cookie']` is load-bearing; the build re-creates `build/.gitkeep`; TypeScript
+  stays 6.x; goldens are read via `web/test/golden.ts`; `cli.Main` takes a stdin reader.
+- A fuzz job that goes red is answered by committing the crasher, never by re-running.
 
 ## For the owner
 
-- 41 commits unpushed since S3. The next push is the first CI run that builds the web app, runs the
-  Playwright job and runs the e2e setup in the image-less runner; worth watching rather than walking
-  away.
-- Dependabot's npm job will offer TypeScript 7, which breaks the `svelte-check` peer range: it needs a
-  decision, not a merge.
-- Nothing has been opened on the potato yet; the `[human]` gates (T24, T32, T33, T37) are still open
-  and unblocked.
+- 53 commits unpushed. The next push is the first CI run of everything since S3, now including the
+  `image` job (multi-arch build, Trivy, the Linux-only smoke test). Worth watching.
+- Dependabot's npm job will offer TypeScript 7, which breaks the `svelte-check` peer range: it needs
+  a decision, not a merge. The Docker ecosystem will also start offering base-image digest bumps.
+- T24 (Phase 1 on the potato) is now unblocked in code terms: T21, T22 and T23 are ticked. The
+  `[human]` gates (T24, T32, T33, T37) are still open.
