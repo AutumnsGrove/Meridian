@@ -116,6 +116,8 @@ rules are in [STANDARDS.md](STANDARDS.md); the work order is [agent/TASKS.md](ag
 
 | 79 | **The host unit-name grammar accepts `.path` as well as `.service`, `.timer`, `.socket` and `.target`, lives in one place (`wire.IsUnitName`), and caps a name at systemd's 255 characters with no leading dash.** | The four suffixes listed in T22 as written; a second grammar in the probe and in the executor | The executor's own health is visible through `meridian-control.path`, which T31's installer adds to `observe.json`; with four suffixes the probe would silently drop the one unit that says whether the watcher is alive, and a dead timer would look like a dead box. One grammar in `wire` means the probe that hands a name to `systemctl` and the executor that will hand one to it cannot drift apart, and one fuzz target covers both |
 
+| 80 | **The image job fails on a fixable HIGH or CRITICAL finding and reports the unfixed ones without failing.** Trivy runs once, on the loaded amd64 image, before the smoke test | Failing on every HIGH/CRITICAL including the ones no patched base image exists for; scanning both architectures (the binary is the same code, and the amd64 layer is what ships to the potato); no scan at all | A gate that cannot be satisfied is a gate that gets muted or deleted, and distroless base CVEs with no fix are not something this repo can act on. Fixable findings are exactly the ones a bump or a code change can clear, so those are the ones worth failing a push over. One architecture is enough to be scanned: the other differs only in the Go toolchain's output |
+
 ## Honest caveats worth re-reading
 
 - **The sudoers rule is documentation as much as enforcement** — `autumn` already holds
