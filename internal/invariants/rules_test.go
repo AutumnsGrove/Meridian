@@ -353,7 +353,7 @@ func checkHostLiterals(root string) error {
 
 // checkHostStdlib is the stdlib-only rule for the host binary and the packages it shares with it.
 func checkHostStdlib(root string) error {
-	hostPackages := []string{"cmd/meridian-host", "internal/atomicfile", "internal/hostexec", "internal/hostprobe", "internal/jsonpath", "internal/wire"}
+	hostPackages := []string{"cmd/meridian-host", "internal/atomicfile", "internal/hostexec", "internal/hostfile", "internal/hostprobe", "internal/jsonpath", "internal/wire"}
 
 	return walkGoFiles(root, func(f goFile) error {
 		if !underAny(f.rel, hostPackages) {
