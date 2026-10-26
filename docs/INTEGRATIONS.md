@@ -20,7 +20,7 @@ Re-verify before implementing a phase — these are the facts the config depends
 | AdGuard | `GET http://localhost/` | `302` → login | link only |
 | AdGuard | `GET /control/stats` (basic auth) | the admin user/pass (reused deliberately) | vital: `num_blocked_filtering / num_dns_queries` |
 | Unbound | UDP DNS query to `127.0.0.1:5335` | `NOERROR` + an answer | health (unit state comes from `status/host.json`) |
-| tailscaled | `tailscale status --json` on the host, copied into `status/host.json` | `Self.Online`, `Self.ExitNode`, `Peer[]` | Tailscale tile: exit-node state + peers online |
+| tailscaled | `tailscale status --json` on the host, copied into `status/host.json` | `Self.Online`, `Self.ExitNodeOption`, `Peer[]` | Tailscale tile: exit-node state + peers online |
 
 ## The Ivy `Host` detail (this will bite you)
 
