@@ -27,11 +27,22 @@ const (
 	shutdownDrain     = 5 * time.Second
 )
 
-// Deps is everything the gateway serves from. Config is the only field a working gateway needs; the
+// LoadStatus is how the last configuration load went. A rejected reload keeps the previous config
+// serving and sets Error, which the page shows as a banner (decision #41).
+type LoadStatus struct {
+	// LoadedAt is when the configuration being served was accepted.
+	LoadedAt time.Time
+	// Error is a short "path: code" summary of a rejected reload, empty after a good load.
+	Error string
+}
+
+// Deps is everything the gateway serves from. Current is the only field a working gateway needs; the
 // rest have a sensible zero value so a test can replace just the part it is exercising.
 type Deps struct {
-	// Config is the configuration currently being served.
-	Config *config.Config
+	// Current returns the configuration being served and how its last load went. It is called once
+	// per request, which is what makes a SIGHUP reload take effect without a restart. A nil func, or
+	// a nil config, means no configuration has ever loaded.
+	Current func() (*config.Config, LoadStatus)
 	// Logger receives the access log and recovered panics. A nil logger stays silent.
 	Logger *log.Logger
 	// Version is the build version, reported by /healthz.
@@ -67,12 +78,19 @@ func (deps Deps) Handler() http.Handler {
 	for _, route := range Routes(deps) {
 		mux.Handle(route.Pattern, route.Handler)
 	}
-	allowed := deps.allowedHosts()
+	// The allowlist is read per request, so a reload that changes it is enforced at once.
+	hosts := func() []string {
+		cfg, _ := deps.current()
+		if cfg == nil {
+			return nil
+		}
+		return cfg.Server.AllowedHosts
+	}
 	return RecoverPanic(deps.Logger,
 		SecurityHeaders(
-			HostCheck(allowed,
+			HostCheck(hosts,
 				AccessLog(deps.Logger,
-					BrowserGuard(allowed, mux)))))
+					BrowserGuard(hosts, mux)))))
 }
 
 // NewServer builds the HTTP server the binary runs, with the documented timeouts.
@@ -146,18 +164,20 @@ func isAPIPath(path string) bool {
 	return path == "/api" || strings.HasPrefix(path, "/api/")
 }
 
-func (deps Deps) allowedHosts() []string {
-	if deps.Config == nil {
-		return nil
+// current reads the configuration being served, tolerating a gateway that has never loaded one.
+func (deps Deps) current() (*config.Config, LoadStatus) {
+	if deps.Current == nil {
+		return nil, LoadStatus{}
 	}
-	return deps.Config.Server.AllowedHosts
+	return deps.Current()
 }
 
 func (deps Deps) listen() string {
-	if deps.Config == nil {
+	cfg, _ := deps.current()
+	if cfg == nil {
 		return ""
 	}
-	return deps.Config.Listen
+	return cfg.Listen
 }
 
 // discardLogger is what a nil logger means: nobody asked to see the log.

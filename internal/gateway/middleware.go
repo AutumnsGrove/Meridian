@@ -48,9 +48,9 @@ func SecurityHeaders(next http.Handler) http.Handler {
 // HostCheck refuses a request addressed to a name this page does not answer to. It is the
 // DNS-rebinding guard of decision #54, not authentication: loopback and server.allowed_hosts are the
 // whole rule, and there is no token, no cookie and no session behind it.
-func HostCheck(allowed []string, next http.Handler) http.Handler {
+func HostCheck(hosts func() []string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !HostAllowed(r.Host, allowed) {
+		if !HostAllowed(r.Host, hosts()) {
 			writeError(w, http.StatusMisdirectedRequest, "this page does not answer to that host")
 			return
 		}
@@ -119,7 +119,7 @@ func splitHost(host string) (name, port string, hasPort bool) {
 // body that is not JSON, a cross-site fetch, an origin outside the allowlist, or a body over the cap.
 // It is not authentication (decision #10) and GET and HEAD requests pass through untouched, because
 // reading is not a thing a hostile page can turn into an action.
-func BrowserGuard(allowed []string, next http.Handler) http.Handler {
+func BrowserGuard(hosts func() []string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
 			next.ServeHTTP(w, r)
@@ -135,7 +135,7 @@ func BrowserGuard(allowed []string, next http.Handler) http.Handler {
 		}
 		if origin := r.Header.Get("Origin"); origin != "" {
 			parsed, err := url.Parse(origin)
-			if err != nil || !HostAllowed(parsed.Host, allowed) {
+			if err != nil || !HostAllowed(parsed.Host, hosts()) {
 				writeError(w, http.StatusForbidden, "this page does not answer to that origin")
 				return
 			}

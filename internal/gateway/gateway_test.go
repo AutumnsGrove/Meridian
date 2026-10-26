@@ -63,11 +63,23 @@ func (buffer *syncBuffer) String() string {
 	return buffer.builder.String()
 }
 
-// testGateway is a gateway served over a fstest app tree, with a log the test can read.
+// testNow is the clock every gateway test works at, so no response depends on the wall clock.
+var testNow = time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+
+// testGateway is a gateway served over a fstest app tree, with a log the test can read and a config
+// the test can replace, the way a reload would.
 type testGateway struct {
 	deps gateway.Deps
 	logs *syncBuffer
 	site fstest.MapFS
+	cfg  *config.Config
+	load gateway.LoadStatus
+}
+
+// Current is the config seam: it reports whatever the test last stored, which is how a reload is
+// simulated without a running server.
+func (hub *testGateway) Current() (*config.Config, gateway.LoadStatus) {
+	return hub.cfg, hub.load
 }
 
 func newTestGateway(t *testing.T) *testGateway {
@@ -85,16 +97,19 @@ func newTestGateway(t *testing.T) *testGateway {
 		"index.html":            {Data: []byte("<!doctype html><title>launcher</title>")},
 		"_app/immutable/app.js": {Data: []byte("console.log('app')")},
 	}
-	return &testGateway{
-		deps: gateway.Deps{
-			Config:  parsed,
-			Logger:  log.New(logs, "", 0),
-			Version: "test-version",
-			Static:  site,
-		},
+	hub := &testGateway{
 		logs: logs,
 		site: site,
+		cfg:  parsed,
+		load: gateway.LoadStatus{LoadedAt: testNow},
 	}
+	hub.deps = gateway.Deps{
+		Current: hub.Current,
+		Logger:  log.New(logs, "", 0),
+		Version: "test-version",
+		Static:  site,
+	}
+	return hub
 }
 
 // request drives the assembled handler, which is what a browser sees.
@@ -243,7 +258,7 @@ func TestBrowserGuard_RefusesWhatABrowserPageShouldNotSend(t *testing.T) {
 		_, _ = io.Copy(io.Discard, request.Body)
 		w.WriteHeader(http.StatusOK)
 	})
-	guard := gateway.BrowserGuard([]string{"hub.example.org"}, next)
+	guard := gateway.BrowserGuard(func() []string { return []string{"hub.example.org"} }, next)
 
 	tests := []struct {
 		name    string
@@ -355,7 +370,7 @@ func TestBrowserGuard_RefusesAnOversizedBody(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-	guard := gateway.BrowserGuard(nil, next)
+	guard := gateway.BrowserGuard(func() []string { return nil }, next)
 
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost/api/control", strings.NewReader(strings.Repeat("x", 8<<10+1)))
 	request.Header.Set("Content-Type", "application/json")
@@ -450,7 +465,7 @@ func TestServe_ReportsAStartedServerAsAnError(t *testing.T) {
 	// Something else already holds the port, so Serve must return the listen error instead of blocking.
 	taken := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer taken.Close()
-	gw.deps.Config.Listen = strings.TrimPrefix(taken.URL, "http://")
+	gw.cfg.Listen = strings.TrimPrefix(taken.URL, "http://")
 
 	err := gateway.Serve(t.Context(), gw.deps)
 	if err == nil {
@@ -631,4 +646,36 @@ func referenceSplit(host string) (name string, hasPort bool) {
 		return lowered[:index], true
 	}
 	return lowered, false
+}
+
+func TestHandler_ReadsTheConfigOnEveryRequest(t *testing.T) {
+	hub := newTestGateway(t)
+	handler := hub.deps.Handler()
+
+	serve := func(host string) int {
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil)
+		request.Host = host
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		return recorder.Code
+	}
+
+	if got := serve("hub.example.org"); got != http.StatusOK {
+		t.Fatalf("the configured host = %d before the reload, want 200", got)
+	}
+
+	reloaded, _, err := config.Parse([]byte(strings.Replace(testConfig, "allowed_hosts: [hub.example.org, withport.example.org:8891]",
+		"allowed_hosts: [new.example.org]", 1)))
+	if err != nil {
+		t.Fatalf("parse the reloaded config: %v", err)
+	}
+	hub.cfg = reloaded
+
+	// The same handler, a new config: a reload does not need a restart or a rebuilt mux.
+	if got := serve("hub.example.org"); got != http.StatusMisdirectedRequest {
+		t.Fatalf("the old host = %d after the reload, want 421", got)
+	}
+	if got := serve("new.example.org"); got != http.StatusOK {
+		t.Fatalf("the new host = %d after the reload, want 200", got)
+	}
 }
