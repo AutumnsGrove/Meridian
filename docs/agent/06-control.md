@@ -116,8 +116,9 @@ control directory as hostile.
 KiB, strict decode, full validation. **Any failure refuses to run at all** (exit non-zero, message to
 the journal, nothing executed). `host.json` holds `{control_dir, deploy_user}`; `targets.json` is the
 shape in CONTROL.md. Validation: target ids are slugs; `kind` in `systemd|compose|container|host`;
-`actions` a subset of the known verbs; `unit` and container names match the unit-name grammar;
-`dir` absolute and clean; every `cmd` is a non-empty argv whose first element is an absolute path,
+`actions` a subset of the known verbs; `unit` names match the unit-name grammar and `service` and
+`container` names match Docker's (no leading dash, `[A-Za-z0-9][A-Za-z0-9_.-]*` — a real container
+name has no unit suffix, so one grammar cannot cover both); `dir` absolute and clean; every `cmd` is a non-empty argv whose first element is an absolute path,
 no element contains NUL; `run_as` is empty or equals `deploy_user`; `criticality` known;
 `update_timeout_s` bounded 1..1800.
 
@@ -128,8 +129,9 @@ no element contains NUL; `run_as` is empty or equals `deploy_user`; `criticality
 3. Prune results older than 7 days and audit lines older than 365 days (audit rewrite is
    `atomicfile` within the read-only-mounted outbox directory, so the container's view updates).
 4. List `inbox/queue` through an `os.Root`; only names matching `^[0-9a-f-]{36}\.json$` are requests.
-   Anything else is deleted and audited as `bad_request` (never opened). Sort by name (UUIDv7 sorts by
-   time). Process one at a time, **re-listing** until empty, at most 64 per invocation.
+   Anything else is deleted and audited as `bad_request` under a fresh id, never the planted name
+   (never opened). Sort by name (UUIDv7 sorts by time). Process one at a time, **re-listing** until
+   empty, at most 64 per invocation.
 5. For each file: open with `O_NOFOLLOW`, `Fstat` must be a regular file of at most 4 KiB, read, strict
    decode. **Never include file contents in an error, result or log.** Then in order:
    `wire.ValidateRequest`; id equals the filename stem; replay (a result for this id already exists:
