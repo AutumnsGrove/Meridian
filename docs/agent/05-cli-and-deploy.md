@@ -44,12 +44,21 @@ Package `internal/doctor`. Answers "why is my config wrong". **Read only**: it m
 `control` and must not write files (invariants test).
 
 ```go
-type Check struct { Name, Code, Detail string; Level Level } // Level: OK, Warn, Fail
-type ServiceReport struct { ID string; Checks []Check }
+type Check struct { Name, Code, Detail, Hint string; Level Level } // Level: OK, Warn, Fail
+type ServiceReport struct { ID, Name string; Checks []Check }
 type Report struct { Config []Check; Services []ServiceReport }
+func (r Report) Failed() bool                                   // decides the exit code
 func Run(ctx context.Context, cfg *config.Config, env probe.Env, allow *Allowlist) Report
-func Render(r Report) string        // pure, stable, no colour when not a TTY
+func InvalidConfig(err error) Report                            // a config that did not load, explained
+func InvalidAllowlist(err error) Report
+func ParseAllowlist([]byte) (*Allowlist, error)                 // names and actions; the rest is the executor's
+func Render(r Report) string                                    // pure and stable: one line per check
 ```
+
+`Hint` is not optional in spirit: every `Warn` and `Fail` carries one sentence of what to do next, from
+a table keyed by reason code, so a failure is never a dead end. `Render` prints the level, the name,
+the detail and the code in brackets, with the hint under it, and a last line with the counts. A probe
+failure keeps the probe's own code, so the page, the log and `doctor` name the same cause.
 
 - Checks per service: referenced env vars present (**names only**, never values); each probe run **once
   with the real runners** from `probe`, so doctor and the page can never disagree; the click-through
