@@ -291,7 +291,9 @@ func (scheduler *Scheduler) pollOnce(ctx context.Context, poller *poller) {
 			scheduler.log.Printf("probe panic: service %s: %v", poller.id, recovered)
 			previous, _ := scheduler.store.state(poller.id)
 			health := Health{Status: StatusDown, Code: CodeBadValue}
-			scheduler.store.Update(poller.id, Merge(previous, health, nil, scheduler.clock.Now()))
+			merged := Merge(previous, health, nil, scheduler.clock.Now())
+			scheduler.store.Update(poller.id, merged)
+			scheduler.logTransition(poller, previous, merged)
 		}
 	}()
 
@@ -312,7 +314,18 @@ func (scheduler *Scheduler) pollOnce(ctx context.Context, poller *poller) {
 		return
 	}
 	previous, _ := scheduler.store.state(poller.id)
-	scheduler.store.Update(poller.id, Merge(previous, health, vitals, scheduler.clock.Now()))
+	merged := Merge(previous, health, vitals, scheduler.clock.Now())
+	scheduler.store.Update(poller.id, merged)
+	scheduler.logTransition(poller, previous, merged)
+}
+
+// logTransition writes the one log line a service's status change earns, and nothing when it did not
+// change. Called after the store is updated so a slow logger cannot delay the next reader.
+func (scheduler *Scheduler) logTransition(poller *poller, before, after State) {
+	enabled := !poller.service.Disabled
+	if line := TransitionLine(poller.id, Derive(before, enabled), Derive(after, enabled), after.Health.Code); line != "" {
+		scheduler.log.Print(line)
+	}
 }
 
 // finishCycle releases anyone waiting on this service's next result, and reports whether another

@@ -341,3 +341,28 @@ func FuzzMerge(f *testing.F) {
 		}
 	})
 }
+
+func TestTransitionLine(t *testing.T) {
+	tests := []struct {
+		name          string
+		before, after probe.Status
+		code          string
+		want          string
+	}{
+		{name: "no change says nothing", before: probe.StatusOK, after: probe.StatusOK},
+		{name: "a service goes down", before: probe.StatusOK, after: probe.StatusDown, code: probe.CodeTimeout, want: "ivy: ok -> down (timeout)"},
+		{name: "a service comes back", before: probe.StatusDown, after: probe.StatusOK, code: "", want: "ivy: down -> ok"},
+		{name: "degraded carries no health code", before: probe.StatusOK, after: probe.StatusDegraded, code: "", want: "ivy: ok -> degraded"},
+		{name: "unknown is explained too", before: probe.StatusOK, after: probe.StatusUnknown, code: probe.CodeTimeout, want: "ivy: ok -> unknown (timeout)"},
+		{name: "a disabled service has no code to give", before: probe.StatusOK, after: probe.StatusDisabled, code: "", want: "ivy: ok -> disabled"},
+		{name: "a missing code leaves the parentheses off", before: probe.StatusOK, after: probe.StatusDown, code: "", want: "ivy: ok -> down"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := probe.TransitionLine("ivy", test.before, test.after, test.code); got != test.want {
+				t.Errorf("TransitionLine() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}

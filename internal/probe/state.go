@@ -95,6 +95,20 @@ func Derive(state State, enabled bool) Status {
 	}
 }
 
+// TransitionLine renders a service's status change for the log, or "" when the status did not change.
+// The reason code is appended for the states that mean "not ok", because the sentence on the page is
+// built from it and an operator reading the log wants the same word (docs/ARCHITECTURE.md "Logging").
+func TransitionLine(id string, before, after Status, code string) string {
+	if before == after {
+		return ""
+	}
+	line := id + ": " + string(before) + " -> " + string(after)
+	if code == "" || after == StatusOK || after == StatusDegraded || after == StatusDisabled {
+		return line
+	}
+	return line + " (" + code + ")"
+}
+
 func anyVitalFailing(vitals []VitalState) bool {
 	for _, vital := range vitals {
 		if vital.Failing {
