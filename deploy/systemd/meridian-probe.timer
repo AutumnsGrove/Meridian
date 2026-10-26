@@ -1,0 +1,16 @@
+# Fires the host probe every 30 seconds, and once shortly after boot.
+#
+# AccuracySec is a second so the cadence is what it says: the default minute would let a 30s timer
+# drift, and the container starts dimming a unit tile once the snapshot is a couple of minutes old.
+[Unit]
+Description=Run the Meridian host probe every 30 seconds
+Documentation=https://github.com/autumnsgrove/meridian/blob/main/docs/ARCHITECTURE.md
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=30s
+AccuracySec=1s
+Unit=meridian-probe.service
+
+[Install]
+WantedBy=timers.target
