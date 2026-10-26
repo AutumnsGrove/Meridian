@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/autumnsgrove/meridian/internal/config"
+	"github.com/autumnsgrove/meridian/internal/control"
 	"github.com/autumnsgrove/meridian/internal/gateway"
 	"github.com/autumnsgrove/meridian/internal/probe"
 )
@@ -88,10 +89,16 @@ func Run(ctx context.Context, opts RunOptions, signals <-chan os.Signal, logger 
 		Scheduler: scheduler,
 		Host:      host.Read,
 		Now:       time.Now,
-		// Phase 1 ships no control plane, so every action is refused with this sentence
-		// (decisions #10 and #57 keep the executor out of this binary).
-		ControlAvailable: false,
-		ControlReason:    "control plane not installed",
+		// The container side of the control plane. It answers "not installed" on a box with no
+		// control mounts, which is how Phase 1 behaves (decisions #10 and #57).
+		Control: &control.Plane{
+			Config: func() *config.Config {
+				current, _ := live.Current()
+				return current
+			},
+			Host: host.Read,
+			Now:  time.Now,
+		},
 	}
 
 	logger.Info("serving", "config", path, "listen", cfg.Listen, "services", len(cfg.Services))

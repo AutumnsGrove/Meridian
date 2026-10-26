@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-10-25T12:00:00Z",
+  "executor": {
+    "state": "missing",
+    "since": "2026-10-25T10:30:00Z"
+  },
+  "pending": [
+    {
+      "id": "0192f0c4-6c1a-7f3b-9a10-2b6f7c1d8e10",
+      "action": "stop",
+      "target": "one",
+      "requested_at": "2026-10-25T11:59:40Z",
+      "age_s": 20,
+      "unclaimed": true
+    }
+  ],
+  "results": [
+    {
+      "id": "0192f0c4-6c1a-7f3b-9a10-2b6f7c1d8e45",
+      "action": "update",
+      "target": "one",
+      "ok": false,
+      "code": "action_not_allowed",
+      "exit_code": 0,
+      "started_at": "2026-10-25T11:56:00Z",
+      "finished_at": "2026-10-25T11:56:00Z",
+      "duration_ms": 0,
+      "output": "",
+      "note": "",
+      "sentence": "That target does not allow this action."
+    },
+    {
+      "id": "0192f0c4-6c1a-7f3b-9a10-2b6f7c1d8e44",
+      "action": "stop",
+      "target": "one",
+      "ok": true,
+      "code": "",
+      "exit_code": 0,
+      "started_at": "2026-10-25T11:58:30Z",
+      "finished_at": "2026-10-25T11:58:32Z",
+      "duration_ms": 2000,
+      "output": "inactive (dead)",
+      "note": "auto-restore scheduled",
+      "restore_at": "2026-10-25T12:09:00Z",
+      "sentence": ""
+    }
+  ],
+  "audit": [
+    {
+      "at": "2026-10-25T11:58:32Z",
+      "id": "0192f0c4-6c1a-7f3b-9a10-2b6f7c1d8e44",
+      "action": "stop",
+      "target": "one",
+      "ok": true,
+      "code": "",
+      "duration_ms": 2000,
+      "by": "tailnet",
+      "output": "inactive (dead)",
+      "sentence": ""
+    }
+  ],
+  "autorestore": [
+    {
+      "ref": "0192f0c4-6c1a-7f3b-9a10-2b6f7c1d8e44",
+      "target": "one",
+      "restore_at": "2026-10-25T12:09:00Z",
+      "remaining_s": 540
+    }
+  ]
+}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/autumnsgrove/meridian/internal/config"
+	"github.com/autumnsgrove/meridian/internal/control"
 	"github.com/autumnsgrove/meridian/internal/probe"
 	"github.com/autumnsgrove/meridian/internal/wire"
 )
@@ -60,12 +61,11 @@ type Deps struct {
 	Scheduler *probe.Scheduler
 	// Host reads the latest host snapshot. A nil Host, or no snapshot, leaves the host block null.
 	Host func() (wire.HostSnapshot, bool)
+	// Control is the container side of the control plane. A nil Control means this box has none, which
+	// is every Phase 1 deployment: /api/control answers 503 and /api/status says so.
+	Control *control.Plane
 	// Now is the clock that stamps the response. Nil means the wall clock.
 	Now func() time.Time
-	// ControlAvailable reports whether this box has a control plane (false throughout Phase 1).
-	ControlAvailable bool
-	// ControlReason explains its absence, when it is absent.
-	ControlReason string
 }
 
 // Route is one entry of the route table: a Go 1.22+ pattern and the handler that answers it.
@@ -80,6 +80,8 @@ func Routes(deps Deps) []Route {
 	return []Route{
 		{Pattern: "GET /healthz", Handler: healthz(deps)},
 		{Pattern: "GET /api/status", Handler: status(deps)},
+		{Pattern: "POST /api/control", Handler: enqueue(deps)},
+		{Pattern: "GET /api/control/status", Handler: controlStatus(deps)},
 		{Pattern: "GET /icons/{file}", Handler: icons(deps)},
 		{Pattern: "/", Handler: static(deps)},
 	}
@@ -195,15 +197,13 @@ func (deps Deps) now() time.Time {
 	return deps.Now()
 }
 
-// control is the top-level control block: Phase 1 has no control plane, and says so.
+// control reports whether this box has a control plane, and why not when it does not. It is asked
+// per request, like everything else, so mounting the directories and reloading is enough.
 func (deps Deps) control() (available bool, reason string) {
-	if deps.ControlAvailable {
-		return true, ""
+	if deps.Control == nil {
+		return false, "control plane not installed"
 	}
-	if deps.ControlReason != "" {
-		return false, deps.ControlReason
-	}
-	return false, "control plane not installed"
+	return deps.Control.Available()
 }
 
 func (deps Deps) listen() string {

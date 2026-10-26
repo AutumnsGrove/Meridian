@@ -444,18 +444,21 @@ func TestNewServer_UsesTheDocumentedTimeouts(t *testing.T) {
 	}
 }
 
-func TestRoutes_AreAllReadOnly(t *testing.T) {
+func TestRoutes_AreAllReadOnlyExceptControl(t *testing.T) {
 	gw := newTestGateway(t)
 	routes := gateway.Routes(gw.deps)
 	if len(routes) == 0 {
 		t.Fatal("the gateway has no routes")
 	}
+	// Decision #34: the launcher serves nothing mutating, and the control plane has exactly one
+	// route that is (the invariants test enforces the same rule on the literals).
+	const mutatingRoute = "POST /api/control"
 	for _, route := range routes {
 		if route.Handler == nil {
 			t.Errorf("route %q has no handler", route.Pattern)
 		}
-		if !strings.HasPrefix(route.Pattern, "GET ") && route.Pattern != "/" {
-			t.Errorf("route %q is not a GET route; the launcher serves no mutating route", route.Pattern)
+		if !strings.HasPrefix(route.Pattern, "GET ") && route.Pattern != "/" && route.Pattern != mutatingRoute {
+			t.Errorf("route %q is not a GET route; %q is the only mutating route", route.Pattern, mutatingRoute)
 		}
 	}
 }

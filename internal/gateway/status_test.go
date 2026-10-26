@@ -544,7 +544,7 @@ func TestStatus_StartsAPassForAManualRefresh(t *testing.T) {
 
 func TestStatus_CarriesTheControlBlockAndTheLoadStatus(t *testing.T) {
 	hub := newTestGateway(t)
-	hub.deps.ControlAvailable = true
+	hub.mountControl(t)
 	hub.load = gateway.LoadStatus{LoadedAt: testNow, Error: "services[0].probes.health: probe_kind_unknown"}
 
 	status := pollStatus(t, hub, "")
