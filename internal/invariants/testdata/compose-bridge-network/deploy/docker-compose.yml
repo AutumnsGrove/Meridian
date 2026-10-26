@@ -1,0 +1,5 @@
+# Fixture for the compose rule: bridge networking would make every probe URL mean the container.
+services:
+  meridian:
+    network_mode: bridge
+    user: "${MERIDIAN_UID}:${MERIDIAN_GID}"

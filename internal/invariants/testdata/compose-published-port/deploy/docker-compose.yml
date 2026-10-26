@@ -1,0 +1,6 @@
+# Fixture for the compose rule: a published port widens the surface and host networking needs none.
+services:
+  meridian:
+    network_mode: host
+    ports:
+      - "8891:8891"
