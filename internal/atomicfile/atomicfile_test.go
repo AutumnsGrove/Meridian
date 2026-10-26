@@ -165,3 +165,76 @@ func TestWriteVia_CleansUpTheTempFileWhenTheRenameFails(t *testing.T) {
 		t.Errorf("temp directory contents = %v, want empty after a failed rename", names)
 	}
 }
+
+func TestWriteRoot_WritesThroughTheRootAndCleansTheTempDirectory(t *testing.T) {
+	inbox := t.TempDir()
+	for _, dir := range []string{"tmp", "queue"} {
+		if err := os.Mkdir(filepath.Join(inbox, dir), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	root, err := os.OpenRoot(inbox)
+	if err != nil {
+		t.Fatalf("OpenRoot: %v", err)
+	}
+	defer func() { _ = root.Close() }()
+
+	if err := atomicfile.WriteRoot(root, "tmp", "queue", "request.json", []byte("payload"), 0o600); err != nil {
+		t.Fatalf("WriteRoot: %v", err)
+	}
+	if got, want := read(t, filepath.Join(inbox, "queue", "request.json")), "payload"; got != want {
+		t.Errorf("queued content = %q, want %q", got, want)
+	}
+	info, err := os.Stat(filepath.Join(inbox, "queue", "request.json"))
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Errorf("mode = %v, want %v", got, want)
+	}
+	if names := entries(t, filepath.Join(inbox, "tmp")); len(names) != 0 {
+		t.Errorf("temp directory contents = %v, want empty", names)
+	}
+}
+
+func TestWriteRoot_CleansUpTheTempFileWhenTheRenameFails(t *testing.T) {
+	inbox := t.TempDir()
+	if err := os.Mkdir(filepath.Join(inbox, "tmp"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.OpenRoot(inbox)
+	if err != nil {
+		t.Fatalf("OpenRoot: %v", err)
+	}
+	defer func() { _ = root.Close() }()
+
+	if err := atomicfile.WriteRoot(root, "tmp", "missing", "request.json", []byte("payload"), 0o600); err == nil {
+		t.Fatal("WriteRoot into a missing directory = nil, want an error")
+	}
+	if names := entries(t, filepath.Join(inbox, "tmp")); len(names) != 0 {
+		t.Errorf("temp directory contents = %v, want empty after a failed rename", names)
+	}
+}
+
+func TestWriteRoot_RejectsNamesThatCouldEscapeTheRoot(t *testing.T) {
+	inbox := t.TempDir()
+	if err := os.Mkdir(filepath.Join(inbox, "tmp"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.OpenRoot(inbox)
+	if err != nil {
+		t.Fatalf("OpenRoot: %v", err)
+	}
+	defer func() { _ = root.Close() }()
+
+	for _, name := range []string{"", ".", "..", "a/b", "../escaped.json", "/escaped.json", `a\b`} {
+		t.Run(name, func(t *testing.T) {
+			if err := atomicfile.WriteRoot(root, "tmp", "tmp", name, []byte("x"), 0o600); err == nil {
+				t.Fatalf("WriteRoot(%q) = nil, want an error", name)
+			}
+		})
+	}
+	if _, err := os.Stat(filepath.Join(inbox, "..", "escaped.json")); !os.IsNotExist(err) {
+		t.Fatal("a rejected name still wrote outside the root")
+	}
+}
