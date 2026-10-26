@@ -55,8 +55,17 @@ export function vitalText(vital: Vital, now: number): string {
 export function tileLabel(service: Service, now: number): string {
 	const parts = [service.name, statusWord(service.status)];
 	if (service.reason !== '') parts.push(service.reason);
-	for (const vital of service.vitals) parts.push(`${vital.label} ${vitalText(vital, now)}`);
+	if (service.vitals.length > 0) {
+		for (const vital of service.vitals) parts.push(`${vital.label} ${vitalText(vital, now)}`);
+	} else if (service.reason === '' && service.description !== '') {
+		parts.push(service.description);
+	}
 	return parts.join(', ');
+}
+
+/** The subtitle a tile shows when it has no vital to show: why it is down, or what it is. */
+export function tileMeta(service: Service): string {
+	return service.reason !== '' ? service.reason : service.description;
 }
 
 /** What to say when the last request failed, or null when it did not. */
