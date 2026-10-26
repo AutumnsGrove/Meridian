@@ -35,10 +35,21 @@ export function restartHref(service: Service): string | null {
 
 export type VitalTone = 'normal' | 'stale' | 'failed';
 
-/** How a vital should be drawn: failing first, then simply old. */
-export function vitalTone(vital: Vital): VitalTone {
+/** How old a vital's reading is, in whole seconds, measured by the clock its label is drawn from. */
+function vitalAgeSeconds(vital: Vital, now: number): number {
+	const then = Date.parse(vital.at);
+	if (Number.isNaN(then)) return 0;
+	return Math.max(0, Math.floor((now - then) / 1000));
+}
+
+/**
+ * How a vital should be drawn: failing first, then simply old. The age is the one the label shows,
+ * not the one the response carried, so a value can never read "5m ago" in full brightness until the
+ * next poll (docs/DESIGN.md "Launcher").
+ */
+export function vitalTone(vital: Vital, now: number): VitalTone {
 	if (vital.failing) return 'failed';
-	if (vital.age_s > STALE_VITAL_S) return 'stale';
+	if (vitalAgeSeconds(vital, now) > STALE_VITAL_S) return 'stale';
 	return 'normal';
 }
 

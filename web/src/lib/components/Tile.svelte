@@ -21,7 +21,7 @@
 	{#if service.vitals.length > 0}
 		<span class="vitals">
 			{#each service.vitals as vital (vital.label)}
-				<span class="vital vital-{vitalTone(vital)}">{vitalText(vital, now)}</span>
+				<span class="vital vital-{vitalTone(vital, now)}">{vitalText(vital, now)}</span>
 			{/each}
 		</span>
 	{:else}

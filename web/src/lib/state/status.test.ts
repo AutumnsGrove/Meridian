@@ -69,18 +69,37 @@ describe('restartHref', () => {
 describe('vitalTone', () => {
 	const gitea = serviceNamed(status, 'Gitea');
 	const vital = gitea.vitals[0];
+	const agedBy = (seconds: number) => ({
+		...vital,
+		at: new Date(now - seconds * 1000).toISOString()
+	});
 
 	test('a fresh, passing vital is normal', () => {
-		expect(vitalTone(vital)).toBe('normal');
+		expect(vitalTone(agedBy(5), now)).toBe('normal');
 	});
 
 	test('a failing vital is failed even when it is the newest reading', () => {
-		expect(vitalTone({ ...vital, failing: true })).toBe('failed');
+		expect(vitalTone({ ...agedBy(0), failing: true }, now)).toBe('failed');
 	});
 
 	test('a passing vital older than five minutes is stale', () => {
-		expect(vitalTone({ ...vital, age_s: 300 })).toBe('normal');
-		expect(vitalTone({ ...vital, age_s: 301 })).toBe('stale');
+		expect(vitalTone(agedBy(300), now)).toBe('normal');
+		expect(vitalTone(agedBy(301), now)).toBe('stale');
+	});
+
+	test('dims on the same clock the label is drawn from, so the two cannot disagree', () => {
+		const fiveMinutes = agedBy(301);
+
+		expect(vitalText(fiveMinutes, now)).toBe('1.22.0 · 5m ago');
+		expect(vitalTone(fiveMinutes, now)).toBe('stale');
+	});
+
+	test('a timestamp the browser cannot read counts as fresh, never as stale', () => {
+		expect(vitalTone({ ...vital, at: 'not a timestamp' }, now)).toBe('normal');
+	});
+
+	test('a reading from the future is fresh, so clock skew does not dim the page', () => {
+		expect(vitalTone(agedBy(-60), now)).toBe('normal');
 	});
 });
 
