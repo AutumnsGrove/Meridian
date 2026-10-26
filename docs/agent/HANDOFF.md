@@ -27,58 +27,55 @@ Anything that needs your hands (a secret, a GitHub setting, a [human] gate) or y
 
 ---
 
-## Last session: S4 and S5 (2026-10-25)
+## Last session: S6 (2026-10-25)
 
-Finished: T12, T13, T14, T15 (all ticked). `internal/probe` gained the result model, the store and
-the scheduler (stage 3's "stage done" test holds). `internal/gateway` now serves the launcher: the
-route table, the middleware chain, `/healthz`, static files, icons, and `/api/status` with eight
-golden files in `testdata/api/`.
+Finished: T16 (web scaffold) and T17 (launcher UI), both ticked. `web/` is a SvelteKit 3 SPA with
+pnpm, tokens and self-hosted Lexend, ESLint/Prettier/svelte-check/Vitest, and a launcher that renders
+`/api/status`: validator, poller, tiles, status marks, search, banners. 116 web tests. `scripts/check`
+(full: go, fuzz, web, security; e2e still skips) is green.
 
-Partial: none. The web app itself does not exist yet, by design (T16).
+Partial: none.
 
 ## Next
 
-Session **S6**, first task **T16** (SvelteKit scaffold, tokens, fonts, test tooling, embed wiring),
-then T17. Read `docs/agent/04-gateway-and-web.md` from T16 and decisions #58, #59. `pnpm` is required
-and `web/` currently holds only `embed.go` and a placeholder `build/.gitkeep`.
+Session **S7**, first task **T18** (`/control` placeholder: rows, state pills, disabled actions with
+their reasons, `#<id>` targeting, emergency reboot section). Read `docs/agent/04-gateway-and-web.md`
+from T18, then T19. Decision #73 (a tile is one target) already shapes the `restart →` link T18's
+hash targeting serves.
 
 ## State of the tree
 
-Clean and green under the full `scripts/check` (go, security; web, e2e and image still skip because
-`web/package.json` does not exist). 18 commits unpushed; `origin/main` is the S3 tip.
+Clean and green under the full `scripts/check`. 10 commits unpushed; `origin/main` is still the S3 tip.
 
 ## Gotchas
 
-- `gateway.Deps.Current` is a **func**, not a pointer: it returns the config being served and a
-  `LoadStatus`. It is called once per request, so T20's SIGHUP reload only has to swap what it
-  returns. The host allowlist is read per request through the same seam; `NewServer`'s `Addr` is not,
-  so a `listen` change still needs a restart.
-- `Deps` also carries `Store`, `Scheduler`, `Host func() (wire.HostSnapshot, bool)`, `Now`,
-  `ControlAvailable` and `ControlReason`. T20 must wire `Host` from the same reader it gives
-  `probe.Env.Host`; leaving it nil just means the `host` block is null.
-- The contract's small print, now in `04-gateway-and-web.md`: disabled services are outside
-  `summary.total`, degraded counts as up, `checked_at` is the zero time before a first poll, `host`
-  is null when nothing has written a snapshot, and a degraded tile's `reason` is its failing vital's
-  sentence.
-- Golden files live in `testdata/api/status.*.golden.json` (repo root, not the package) and are only
-  regenerated with `go test ./internal/gateway -update`. T17's TypeScript client tests must read the
-  same files, so a contract change is a golden diff plus both sides' tests.
-- `BrowserGuard` wraps every non-GET request but no POST route exists yet, so it has no live route
-  until T26. It refuses a declared body over 8 KiB with 413 before the handler runs.
-- `RecoverPanic` logs the panic value **and** the stack, and answers 500 with no detail. Only the
-  owner can read the log, and a panic without its value is undebuggable.
-- Icons: the config value is `icons/<file>` and the contract emits `/icons/<file>`. The route opens
-  `<config dir>/icons` as an `os.Root`, so a symlink out of it is a 404.
-- `web/build` holds only `.gitkeep`, so the SPA fallback currently ends in a 404 from
-  `http.ServeFileFS`; every gateway test passes its own `fstest.MapFS` instead.
-- `internal/gateway/testdata/fuzz/FuzzHostCheck` has five committed crashers. They pin the accepted
-  host grammar: invalid UTF-8 is refused (lower casing would otherwise fold two different malformed
-  names together), IPv6 must be bracketed, and a stray bracket is not a host.
+- **It is SvelteKit 3, not 5.** Config lives in `web/vite.config.ts` via `sveltekit({ adapter, csp })`;
+  there is no `svelte.config.js`, and `$lib` is gone in favour of `#lib`. `#lib` is declared twice and
+  the two must stay in sync: `web/package.json` `imports` (Vite/rolldown) and `web/tsconfig.json`
+  `paths` (the type checker, which does not add extensions to subpath imports).
+- `vite.config.ts` sets `ssr.noExternal: ['cookie']`: Kit externalises its own dependencies and
+  adapter-static imports the SSR output once to analyse routes, while pnpm does not link Kit's deps
+  into the app. Removing it breaks `pnpm build` (locally a stray `/Users/autumn/node_modules/cookie`
+  made it fail loudly instead).
+- `pnpm build` empties `web/build`, so the build script re-creates the tracked `.gitkeep`
+  (`vite build && touch build/.gitkeep`). Keep that, or every build leaves a deleted file behind.
+- TypeScript is pinned to 6.x because `svelte-check` peers `^5 || ^6` and the registry's latest is 7.
+  A Dependabot bump to 7 will break the peer range; it needs a decision, not a merge.
+- Vitest needs `resolve.conditions: ['browser', 'node']` in `web/vitest.config.ts`: without `browser`
+  Svelte resolves its server build and `mount()` throws, without `node` Vite cannot resolve
+  `node:module`. Component tests pass props directly: `render(Tile, { service, now })`.
+- Golden files are read through `web/test/golden.ts` from `process.cwd()/../testdata/api`
+  (`import.meta.url` is not a file URL under jsdom). Its `serviceNamed` helper is how every component
+  test gets the portable fixture, so no component test names a real service.
+- `svelte/no-navigation-without-resolve` is off in `web/eslint.config.js`: the gateway serves the SPA
+  at `/` with no base path. The same block declares `window`/`document`, because eslint-plugin-svelte's
+  config no longer brings browser globals.
+- Nothing has been looked at in a real browser yet: T19's Playwright suite is the first time. The
+  launcher's only buttons are the search engines; keep it that way (T18 adds disabled ones).
 
 ## For the owner
 
-- Nothing from S4 or S5 is pushed. `origin/main` is the S3 tip and its CI is green.
-- Dependabot PR #3 (the actions group) sits open and passing. The npm and docker update runs keep
-  failing until `web/` (T16) and the Dockerfile (T23) exist.
-- Cosmetic, still open: `suffix: "% blocked"` in the worked example renders as `30 % blocked`,
-  because `format.Compose` always joins with a space.
+- Still nothing pushed since S3: 10 commits, CI green on the S3 tip only.
+- Dependabot's npm job now has a `web/` to update; its first run will try the TypeScript 7 bump above.
+- `pnpm e2e` does not work yet (no Playwright config until T19); browsers will need
+  `pnpm exec playwright install` once. `scripts/check e2e` skips itself until then.
