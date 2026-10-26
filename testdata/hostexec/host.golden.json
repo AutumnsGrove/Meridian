@@ -1,0 +1,4 @@
+{
+  "control_dir": "/srv/meridian/control",
+  "deploy_user": "deploy"
+}

@@ -1,0 +1,43 @@
+{
+  "targets": {
+    "app": {
+      "kind": "systemd",
+      "unit": "app.service",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "medium",
+      "update": {
+        "kind": "command",
+        "cmd": ["/opt/app/bin/app", "update"],
+        "run_as": "deploy"
+      }
+    },
+    "resolver": {
+      "kind": "systemd",
+      "unit": "resolver.service",
+      "actions": ["start", "stop", "restart"],
+      "dns": true,
+      "criticality": "high",
+      "no_update_reason": "no scripted updater"
+    },
+    "stack": {
+      "kind": "compose",
+      "dir": "/srv/stack",
+      "service": "web",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "medium",
+      "update": {"kind": "unit", "unit": "stack-update.service"},
+      "update_timeout_s": 420
+    },
+    "worker": {
+      "kind": "container",
+      "container": "worker",
+      "actions": ["start", "stop", "restart"],
+      "criticality": "low"
+    },
+    "host": {
+      "kind": "host",
+      "actions": ["reboot"],
+      "criticality": "high"
+    }
+  }
+}
