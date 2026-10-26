@@ -65,8 +65,8 @@ service, P3 = all targets, P4 = self-update and install.
 
 ## Stage 4: Gateway and web ([04-gateway-and-web.md](04-gateway-and-web.md))
 
-- [ ] **T14** Gateway skeleton: server, headers, browser guard, `/healthz`, icons (deps: T06)
-- [ ] **T15** `/api/status` contract, handler and golden file (deps: T13, T14)
+- [x] **T14** Gateway skeleton: server, headers, browser guard, `/healthz`, icons (deps: T06)
+- [x] **T15** `/api/status` contract, handler and golden file (deps: T13, T14)
 - [ ] **T16** Web scaffold: SvelteKit, tokens, fonts, test tooling, embed wiring (deps: T01)
 - [ ] **T17** Launcher UI: tiles, states, search (deps: T15, T16)
 - [ ] **T18** `/control` placeholder page: layout and failure modes, no actions (deps: T17)
