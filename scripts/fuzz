@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Run every Go fuzz target in the repo for a fixed time each.
 #
-# Usage: scripts/fuzz [duration]     default 20s; the weekly CI job passes 10m
+# Usage: scripts/fuzz [duration]     default 20s
+#
+# This is the body of `scripts/check fuzz`, which is the way to run it: the full check calls it with
+# $FUZZ_TIME (5s locally, 20s in CI, 10 minutes weekly). Run it directly only to pass a one-off
+# duration.
 #
 # Crashers are saved by `go test` under testdata/fuzz/<Target>/ and must be committed.
 set -euo pipefail

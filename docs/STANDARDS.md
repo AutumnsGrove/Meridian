@@ -113,8 +113,11 @@ functions with a property that should hold for all inputs.
 - Fuzz targets must be fast (no network, no sleeping) and deterministic for a given input.
 - Crashers go in `testdata/fuzz/<Target>/` automatically; **commit them**, they are the regression
   suite. A crasher is fixed with a normal red-green cycle.
-- `go test` runs every seed corpus as a plain test, so fuzz targets are part of `scripts/check` for
-  free. CI runs a short real fuzz pass on every push and a long one weekly (section 8).
+- `go test` runs every seed corpus as a plain test, so the corpus is checked by every commit for
+  free. The full `scripts/check` also runs every target for real, for `FUZZ_TIME` (5s locally, 20s
+  in CI, 10 minutes weekly). Fuzzing is probabilistic: a clean local run makes a red CI run less
+  likely, not impossible. A red `fuzz-smoke` job is answered by committing the crasher it found, never
+  by re-running until it goes green.
 
 **Frontend**: [`fast-check`](https://fast-check.dev) property tests for the pure `.ts` modules
 (search URL builder, age formatting, armed-button state machine, status parser).
@@ -227,7 +230,8 @@ read-only root filesystem, all capabilities dropped, `no-new-privileges`, pinned
 - **Every commit must pass `scripts/check --fast` before it is made**, and the pre-commit hook
   enforces it. CI only sees the tip of whatever batch is pushed, so a broken middle commit would
   otherwise never be caught, and `git bisect` would be useless.
-- Before a push, run the full `scripts/check`.
+- A push runs the full `scripts/check`, fuzz pass included, and the pre-push hook enforces it. Pushes
+  are batched, so this is once per batch, which is exactly when it matters.
 - Never commit generated output (`web/build/` aside from `.gitkeep`, binaries, coverage), secrets,
   or the real `config.yaml`.
 - Never rewrite published history. Never `--no-verify` to get past a hook; fix the cause.
@@ -244,8 +248,8 @@ Workflows (`.github/workflows/`):
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `ci.yml` | push to `main`, manual | `go` (gofmt, vet, golangci-lint, `go test -race -shuffle=on`, build both binaries), `web` (frozen install, `svelte-check`, eslint, prettier, vitest, build), `fuzz-smoke` (every `Fuzz*` for 20s), `e2e` (Playwright against the real binary), `security`, `image` (build, no push, scan) |
-| `fuzz-long.yml` | weekly cron, manual | every `Fuzz*` for 10 minutes, uploads crashers as an artifact |
+| `ci.yml` | push to `main`, manual | `go` (gofmt, vet, golangci-lint, `go test -race -shuffle=on`, build both binaries), `web` (frozen install, `svelte-check`, eslint, prettier, vitest, build), `fuzz-smoke` (`scripts/check fuzz` with `FUZZ_TIME=20s`), `e2e` (Playwright against the real binary), `security`, `image` (build, no push, scan) |
+| `fuzz-long.yml` | weekly cron, manual | `scripts/check fuzz` with `FUZZ_TIME=10m`, uploads crashers as an artifact |
 | `release.yml` | added in Phase 4 | multi-arch image to GHCR by digest, host binary + `SHA256SUMS` as release assets |
 
 `security` job: `govulncheck`, `gitleaks`, `pnpm audit --prod`, `actionlint`, `shellcheck` (for the

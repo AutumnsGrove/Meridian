@@ -22,9 +22,9 @@ made, and a push that violates one fails CI. Read [STANDARDS.md](../STANDARDS.md
   `meridian version` prints them; defaults are `dev`.
 - `.golangci.yml` enabling the linters in STANDARDS section 5; `.editorconfig`; `.gitattributes`
   already exists.
-- `.githooks/pre-commit` runs `scripts/check --fast` and exits non-zero on failure. Document
-  `git config core.hooksPath .githooks` in the top of `scripts/check`'s help and run it once as the
-  last step of this task.
+- `.githooks/pre-commit` runs `scripts/check --fast` and `.githooks/pre-push` runs the full
+  `scripts/check`, each exiting non-zero on failure. Document `git config core.hooksPath .githooks`
+  in the top of `scripts/check`'s help and run it once as the last step of this task.
 - `Makefile`-free: `scripts/` is the interface. No Make.
 
 **Tests first**: `cli.Main` returns exit code 0 and prints a version line for `version`, non-zero
@@ -37,13 +37,14 @@ binaries works with an empty `web/build/`.
 
 **Build**: POSIX `sh` or bash with `set -eu`, `shellcheck`-clean.
 
-`scripts/check [go|web|e2e|security|all] [--fast]`, default `all`:
+`scripts/check [go|web|e2e|fuzz|security|all] [--fast]`, default `all`:
 
 | Group | Commands |
 |---|---|
 | `go` | `gofmt -l` must print nothing; `go vet ./...`; `golangci-lint run`; `go test -race -shuffle=on ./...` (`--fast` drops `-race`); `go build ./cmd/...` |
 | `web` | skipped with a notice if `web/package.json` does not exist yet. Else `pnpm install --frozen-lockfile`, `pnpm check` (svelte-check), `pnpm lint`, `pnpm format:check`, `pnpm test`, `pnpm build` (`--fast` skips build) |
 | `e2e` | build web and binary, run Playwright (skipped under `--fast`) |
+| `fuzz` | `scripts/fuzz $FUZZ_TIME` (default 5s; CI passes 20s) (skipped under `--fast`) |
 | `security` | `govulncheck ./...`, `gitleaks detect`, `pnpm audit --prod`, `actionlint`, `shellcheck scripts/* deploy/**/*.sh` (skipped under `--fast`) |
 
 Missing tools are an error with an install hint. The security group is skipped under `--fast`, so
@@ -51,7 +52,9 @@ Missing tools are an error with an install hint. The security group is skipped u
 
 `scripts/fuzz [duration]` discovers every `func FuzzXxx(` with `go test -list` and runs each with
 `-fuzz=^FuzzXxx$ -fuzztime=<duration>` (default 20s) in its own package. It exits non-zero on the
-first crasher and prints the path of the saved corpus entry.
+first crasher and prints the path of the saved corpus entry. It is the body of `scripts/check fuzz`,
+which the full check and CI both call, so a fuzz pass is part of the gate rather than a thing to
+remember.
 
 **Tests**: shell scripts are tested by running them. Add a CI-less self-check: `scripts/check help`
 exits 0 and lists the groups.

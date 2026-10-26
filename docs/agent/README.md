@@ -34,7 +34,8 @@ For each task, in order:
    and fail on the assertion, not on a typo. Add edge cases the doc did not think of.
 3. **Green.** Write the least code that passes.
 4. **Refactor.** Fold duplication into reusable functions. Tests stay green.
-5. **Check.** `scripts/check --fast` after every commit; full `scripts/check` at the end of a task.
+5. **Check.** `scripts/check --fast` after every commit (the pre-commit hook runs it anyway); the
+   full `scripts/check` at the end of a task, which includes a real fuzz pass.
 6. **Commit small.** Conventional Commits, one logical change each. See STANDARDS.md section 7.
    A normal task is three to eight commits.
 7. **Reconcile docs.** If the code made a sentence in a design doc false, fix the doc in the same
@@ -44,8 +45,9 @@ For each task, in order:
    (`docs(tasks): tick T09`).
 9. **Next.** Pick the next unticked task whose dependencies are done.
 
-Push when your harness or the owner expects it. Run the full `scripts/check` first. CI runs only on
-the tip of a push, so every commit in a batch has to be green on its own.
+Push when your harness or the owner expects it; the pre-push hook runs the full `scripts/check`, fuzz
+pass included. CI runs only on the tip of a push, so every commit in a batch has to be green on its
+own.
 
 ## Task flags
 

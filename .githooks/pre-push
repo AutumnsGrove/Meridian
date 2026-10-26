@@ -1,0 +1,8 @@
+#!/bin/sh
+# A push runs the full gate, fuzz pass included (docs/STANDARDS.md sections 7 and 8). CI only sees the
+# tip of a batch, so the tip has to be green before it leaves this machine.
+# Install once per clone: git config core.hooksPath .githooks
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+exec "$root/scripts/check"

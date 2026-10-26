@@ -4,7 +4,7 @@
 # Run this once per clone so the pre-commit hook is installed:
 #     git config core.hooksPath .githooks
 #
-# Usage: scripts/check [go|web|e2e|security|all] [--fast]
+# Usage: scripts/check [go|web|e2e|fuzz|security|all] [--fast]
 set -euo pipefail
 
 script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
@@ -17,14 +17,15 @@ groups:
   go        gofmt, go vet, golangci-lint, go test, go build
   web       frozen install, svelte-check, eslint, prettier, vitest, build
   e2e       build the web app and the binary, then run Playwright
+  fuzz      every Fuzz* target for $FUZZ_TIME (default 5s; CI passes 20s)
   security  govulncheck, gitleaks, pnpm audit, actionlint, shellcheck
   all       every group above (the default)
 
 flags:
-  --fast    skip the slow jobs: no -race, no web build, no e2e, no security.
-            This is what the pre-commit hook runs.
+  --fast    skip the slow jobs: no -race, no web build, no e2e, no fuzz,
+            no security. This is what the pre-commit hook runs.
 
-Set the hook up once per clone: git config core.hooksPath .githooks
+Set the hooks up once per clone: git config core.hooksPath .githooks
 EOF
 
 # The script checks its own CLI contract before it runs anything: `check help` must exit 0 and
@@ -36,7 +37,7 @@ self_check() {
 		exit 1
 	fi
 	local group
-	for group in go web e2e security; do
+	for group in go web e2e fuzz security; do
 		case "$help_output" in
 		*"$group"*) ;;
 		*)
@@ -54,7 +55,7 @@ fast=0
 
 while [ $# -gt 0 ]; do
 	case "$1" in
-	go | web | e2e | security | all) group=$1 ;;
+	go | web | e2e | fuzz | security | all) group=$1 ;;
 	--fast) fast=1 ;;
 	help | -h | --help)
 		printf '%s\n' "$usage"
@@ -136,6 +137,19 @@ check_e2e() {
 	(cd web && pnpm exec playwright test)
 }
 
+# check_fuzz runs every target for real. The corpus is already part of `go test`; this is the part
+# that finds new failures, and it is probabilistic: a clean run here does not promise a clean CI run,
+# only a shorter one. scripts/check --fast skips it, so a commit stays quick.
+check_fuzz() {
+	if [ "$fast" = 1 ]; then
+		printf '== fuzz: skipped (--fast)\n'
+		return 0
+	fi
+	local duration=${FUZZ_TIME:-5s}
+	printf '== fuzz (every target for %s)\n' "$duration"
+	"$script_dir/fuzz" "$duration"
+}
+
 check_security() {
 	if [ "$fast" = 1 ]; then
 		printf '== security: skipped (--fast)\n'
@@ -170,6 +184,7 @@ check_security() {
 case "$group" in
 all)
 	check_go
+	check_fuzz
 	check_web
 	check_e2e
 	check_security
@@ -177,6 +192,7 @@ all)
 go) check_go ;;
 web) check_web ;;
 e2e) check_e2e ;;
+fuzz) check_fuzz ;;
 security) check_security ;;
 esac
 

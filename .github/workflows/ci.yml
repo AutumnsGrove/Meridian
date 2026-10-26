@@ -80,7 +80,9 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Fuzz every target for 20s
-        run: scripts/fuzz 20s
+        env:
+          FUZZ_TIME: 20s
+        run: scripts/check fuzz
 
   e2e:
     runs-on: ubuntu-latest
