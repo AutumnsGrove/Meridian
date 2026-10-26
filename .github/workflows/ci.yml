@@ -91,44 +91,26 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-      - name: Detect the frontend
-        id: detect
-        run: |
-          set -euo pipefail
-          if [ -f web/package.json ]; then
-            echo "web=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "web=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [ -f web/playwright.config.ts ]; then
-            echo "playwright=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "playwright=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Notice
-        if: steps.detect.outputs.playwright == 'false'
-        run: |
-          echo "e2e skipped: the Playwright suite does not exist yet"
+      # The suite builds the binary and the stub upstream, so it needs the same Go the other jobs use.
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        if: steps.detect.outputs.playwright == 'true'
         with:
           version: 10
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: steps.detect.outputs.playwright == 'true'
         with:
           node-version: lts/*
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: steps.detect.outputs.playwright == 'true'
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
       - name: Install browsers
-        if: steps.detect.outputs.playwright == 'true'
         run: cd web && pnpm install --frozen-lockfile && pnpm exec playwright install --with-deps chromium
       - name: End-to-end checks
-        if: steps.detect.outputs.playwright == 'true'
         run: scripts/check e2e
 
   security:

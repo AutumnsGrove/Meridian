@@ -125,10 +125,6 @@ check_e2e() {
 		printf '== e2e: skipped (--fast)\n'
 		return 0
 	fi
-	if [ ! -f web/playwright.config.ts ]; then
-		printf '== e2e: skipped (no Playwright config yet)\n'
-		return 0
-	fi
 	printf '== e2e\n'
 	need pnpm 'npm install --global pnpm'
 	(cd web && pnpm install --frozen-lockfile && pnpm build)
