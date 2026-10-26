@@ -69,7 +69,7 @@ service, P3 = all targets, P4 = self-update and install.
 - [x] **T15** `/api/status` contract, handler and golden file (deps: T13, T14)
 - [x] **T16** Web scaffold: SvelteKit, tokens, fonts, test tooling, embed wiring (deps: T01)
 - [x] **T17** Launcher UI: tiles, states, search (deps: T15, T16)
-- [ ] **T18** `/control` placeholder page: layout and failure modes, no actions (deps: T17)
+- [x] **T18** `/control` placeholder page: layout and failure modes, no actions (deps: T17)
 - [ ] **T19** Playwright suite against the real binary, with `axe` (deps: T17, T18)
 
 ## Stage 5: CLI and Phase 1 deploy ([05-cli-and-deploy.md](05-cli-and-deploy.md))
