@@ -208,6 +208,7 @@ the same `control` block as the rows.
 ## T19 Playwright suite
 
 Runs against the real binary with the portable fixture; this is what proves the embedded app works.
+It needs `meridian run` (T20) to start the binary, so it comes after S8 (decision #74).
 
 - `testdata/stub/main.go` (run with `go run ./testdata/stub`): a tiny upstream that serves the
   fixture's probe endpoints and has a control endpoint to flip a service up or down. `globalSetup`
