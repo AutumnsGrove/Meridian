@@ -29,6 +29,9 @@ for tool in docker go curl jq; do
 done
 
 workdir=$(mktemp -d)
+# The image runs as distroless's nonroot user, so the snapshot's directory has to be traversable and
+# the file itself readable by a uid the runner does not own.
+chmod 755 "$workdir"
 container=meridian-smoke
 stub_pid=
 
@@ -50,6 +53,7 @@ cat > "$workdir/host.json" <<JSON
   "tailscale": {"online": true, "exit_node": false, "peers_online": 1, "peers_total": 2}
 }
 JSON
+chmod 644 "$workdir/host.json"
 
 # Build the stub rather than `go run` it, so the pid this script stops is the listener itself.
 go build -o "$workdir/stub" ./testdata/stub
