@@ -23,9 +23,9 @@ import (
 )
 
 // ErrUnavailable means this box has no control plane: the directories are not mounted, so there is
-// nothing to ask and nothing to read. It is also a refusal code, because the browser renders the
-// sentence and an error string is not one.
-var ErrUnavailable = errors.New("control: " + string(wire.CodeUnavailable))
+// nothing to ask and nothing to read. The gateway turns it into the unavailable code, because the
+// browser renders sentences, not error strings.
+var ErrUnavailable = errors.New("control: the control plane is not installed")
 
 // ExecutorUnit is the systemd path unit that fires the executor. The host snapshot carries it because
 // the installer adds it to observe.json (T31), so its state is how a silent executor is seen at all.
