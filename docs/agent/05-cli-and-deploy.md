@@ -19,12 +19,16 @@ Package `internal/cli` (cobra). `cmd/meridian/main.go` stays thin.
 - **Host snapshot reader**: `Env.Host` re-reads `host_status.file` when its mtime changes (size cap 64
   KiB, via `wire.ParseHostSnapshot`) and returns the last good parse; a missing or corrupt file means
   `(zero, false)`. Pure parse, thin I/O.
-- `meridian healthcheck`: `GET http://<listen>/healthz` with a 2s timeout, exit 0 only on `200` and
-  `"status":"ok"`. The distroless image has no `curl`, so this is what Docker's healthcheck runs.
+- `meridian healthcheck [--config PATH]`: reads `listen` from the config (same path order as `run`),
+  then `GET http://<listen>/healthz` with a 2s timeout and exits 0 only on `200` and `"status":"ok"`.
+  An unspecified address (`0.0.0.0`, `[::]`) is asked on loopback instead. The distroless image has no
+  `curl`, so this is what Docker's healthcheck runs.
 - `meridian version`: version, commit, build date, `GOOS/GOARCH`.
-- Logging: `charmbracelet/log`, level from `MERIDIAN_LOG` (default `info`), one line per reload and per
-  state transition of a service (`ivy: ok -> down (timeout)`), nothing per request beyond the
-  gateway's access log, never secrets.
+- Logging: `charmbracelet/log`, level from `MERIDIAN_LOG` (default `info`, and a value it cannot parse
+  also means `info`), handed to the gateway and the scheduler as a stdlib logger so everything has one
+  destination and one level. One line per reload, one per state transition of a service
+  (`ivy: ok -> down (timeout)`, from `probe.TransitionLine`), nothing per request beyond the gateway's
+  access log, never secrets.
 
 **Tests first** (integration, using the portable fixture and `httptest` upstreams): start `Main` in a
 goroutine, wait for `/healthz`, assert `/api/status`, edit the config file and send a reload (adding a
