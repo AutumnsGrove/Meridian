@@ -13,7 +13,10 @@ or `/etc/meridian`.
 > prose below says `control/queue`, `control/queue-tmp`, `control/results` or `control/audit.jsonl`,
 > read `control/inbox/queue`, `control/inbox/tmp`, `control/outbox/results` and
 > `control/outbox/audit.jsonl`. The build-out task docs in `docs/agent/06-control.md` are the
-> detailed specification of the implementation.
+> detailed specification of the implementation. The container serves two routes: `POST /api/control`
+> writes one request, and `GET /api/control/status` reads the queue, the recent results, the audit
+> tail and any running auto-restore. Nothing polls an individual result file; the page polls that
+> status route.
 
 ## Threat model, stated plainly
 
@@ -55,8 +58,8 @@ container                                      host
    │                                            │     flock -n (bail if already running)
    │                                            │     sudo -n /etc/meridian/control-run <file>
    │                                            │ → control/results/<id>.json
-   │ polls results/<id>.json every 500ms ───────►│
-   │ (max 90s, then "no result")                │
+   │ GET /api/control/status ───────────────────►│
+   │ (1s while pending, otherwise every 10s)    │
 ```
 
 **Request** (written by the container, never trusted):
