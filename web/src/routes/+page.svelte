@@ -1,27 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { fetchStatus } from '#lib/api/client';
 	import Banner from '#lib/components/Banner.svelte';
 	import SearchBox from '#lib/components/SearchBox.svelte';
 	import Section from '#lib/components/Section.svelte';
-	import { initialPollState, startPolling, type PollState } from '#lib/state/poller';
+	import { createLiveStatus } from '#lib/state/live.svelte';
 	import { bannerText, summaryLabel } from '#lib/state/status';
 
-	let poll: PollState = $state(initialPollState());
-	let now = $state(Date.now());
+	const live = createLiveStatus();
+	onMount(live.start);
 
-	onMount(() =>
-		startPolling({
-			fetchStatus,
-			onChange: (state) => {
-				poll = state;
-				now = Date.now();
-			}
-		})
-	);
-
-	const status = $derived(poll.status);
-	const unreachable = $derived(bannerText(poll, now));
+	const status = $derived(live.poll.status);
+	const unreachable = $derived(bannerText(live.poll, live.now));
 	const configRejected = $derived(
 		status !== null && !status.config.ok
 			? `The last config change was rejected, so the previous one is still serving. ${status.config.error}`
@@ -55,7 +44,7 @@
 		{/if}
 
 		{#each status.sections as section (section.id)}
-			<Section {section} {now} />
+			<Section {section} now={live.now} />
 		{/each}
 	{/if}
 
