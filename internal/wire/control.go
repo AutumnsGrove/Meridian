@@ -195,6 +195,7 @@ const (
 	CodeRestoreFailed    Code = "restore_failed"
 	CodeBadRef           Code = "bad_ref"
 	CodeInternal         Code = "internal"
+	CodeUnavailable      Code = "unavailable"
 )
 
 // codeOrder is the table's display order.
@@ -202,7 +203,7 @@ var codeOrder = []Code{
 	CodeBadRequest, CodeBadID, CodeBadAction, CodeBadTarget, CodeUnknownTarget,
 	CodeActionNotAllowed, CodeMissingAck, CodeBadAck, CodeStale, CodeReplay, CodeCoalesced,
 	CodeQueueFull, CodeTimeout, CodeExecFailed, CodeNotActiveAfter, CodeRestoreFailed,
-	CodeBadRef, CodeInternal,
+	CodeBadRef, CodeInternal, CodeUnavailable,
 }
 
 // codeSentences is the user-facing sentence for each code. They follow the copy rules: second
@@ -226,6 +227,7 @@ var codeSentences = map[Code]string{
 	CodeRestoreFailed:    "The stop was undone because the auto-restore could not be scheduled.",
 	CodeBadRef:           "The auto-restore reference is not valid.",
 	CodeInternal:         "Something went wrong inside the executor.",
+	CodeUnavailable:      "The control plane is not installed on this box.",
 }
 
 // fallbackSentence is what the page shows for a code a newer host invented. Showing something
