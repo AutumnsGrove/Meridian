@@ -1,0 +1,16 @@
+# What the image build does not need. The web app is built inside the image, so a local web/build or
+# node_modules must never leak into it, and the repo's scaffolding (docs, tests, CI) is not part of
+# the binary.
+.git
+.github
+.vscode
+dist
+docs
+mockups
+scripts
+**/testdata
+web/node_modules
+web/build
+web/test
+web/.svelte-kit
+web/coverage
