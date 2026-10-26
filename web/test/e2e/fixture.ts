@@ -115,6 +115,11 @@ export const test = base.extend<{
 		await use(async (path: string) => {
 			const response = await page.goto(run.baseURL + path);
 			expect(response?.status(), `GET ${path}`).toBe(200);
+			// The policy arrives as a meta tag because the app is static and there is no request to
+			// mint a nonce from (decision #58), so the delivered document is where to look.
+			expect(await response?.text(), `the CSP on ${path}`).toContain(
+				'http-equiv="content-security-policy"'
+			);
 			await page.waitForFunction(() => document.querySelector('.tile, .rows') !== null);
 		});
 	}
