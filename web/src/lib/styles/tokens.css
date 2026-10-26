@@ -1,0 +1,89 @@
+/*
+ * The only place raw colour, type and size values live (docs/DESIGN.md "Tokens"). Everything else
+ * uses var(--…) so a tone can be adjusted in one place. Copied from the design doc; change it
+ * there first.
+ */
+:root {
+	color-scheme: dark; /* tells forced-dark extensions to stay out */
+
+	/* surfaces: warm, low chroma, hue ~65 — a quiet page, not a cockpit */
+	--color-bg: oklch(15% 0.014 65);
+	--color-surface: oklch(19% 0.014 65);
+	--color-surface-2: oklch(23% 0.016 65);
+	--color-border: oklch(30% 0.016 65);
+	--color-border-strong: oklch(40% 0.02 65);
+
+	/* text */
+	--color-text: oklch(93% 0.01 75);
+	--color-text-dim: oklch(64% 0.014 70);
+	--color-text-faint: oklch(52% 0.012 70);
+
+	/* the one accent: a cold ice-blue, the line drawn on a star chart.
+	   Unclaimed by Polaris (starlight gold) and Ivy (lilac/green/amber). */
+	--color-accent: oklch(78% 0.1 205);
+	--color-accent-strong: oklch(68% 0.11 205);
+	--color-accent-soft: color-mix(in srgb, var(--color-accent) 16%, transparent);
+
+	/* status: semantic, never used for decoration */
+	--status-ok: oklch(76% 0.12 160);
+	--status-degraded: oklch(80% 0.14 85);
+	--status-down: oklch(68% 0.17 25);
+	--status-unknown: oklch(58% 0.01 65);
+
+	--font-ui: 'Lexend Variable', system-ui, sans-serif;
+	--fs-vital: 22px; /* the one number on a tile */
+	--fs-name: 15px;
+	--fs-meta: 12px;
+	--radius: 10px;
+	--touch: 44px; /* minimum tap target, no exceptions */
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+}
+
+body {
+	background: var(--color-bg);
+	color: var(--color-text);
+	font-family: var(--font-ui);
+	font-size: 16px;
+	line-height: 1.4;
+	-webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p {
+	margin: 0;
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+/* Visible on everything interactive, keyboard-only (docs/DESIGN.md "Accessibility"). */
+:focus-visible {
+	outline: 2px solid var(--color-accent);
+	outline-offset: 2px;
+}
+
+/* The only animations are the pending dot pulse and the armed-stop shake; both are optional. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
