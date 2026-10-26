@@ -153,14 +153,16 @@ src/routes/+page.svelte         the launcher
 ```
 
 Behaviour decided here (see DESIGN "Launcher" and "Search"):
-- The whole tile is one link to `service.url` (no nested interactive targets), same tab, with
-  `rel="noopener noreferrer"`. A service with no `url` renders as a non-link tile.
+- The whole tile is one link (no nested interactive targets), same tab, with
+  `rel="noopener noreferrer"`. It goes to `service.url`, or to `/control#<id>` when the service is
+  down and can be restarted; a service with no `url` and no restart renders as a non-link tile.
 - `StatusMark` renders the shape and a visually hidden label for each of the five statuses; the tile
-  `aria-label` says it all ("Ivy, healthy, 4 need you").
+  `aria-label` says it all ("Ivy, healthy, 4 need you"), including the description or the reason when
+  the tile has no vital to show.
 - A vital older than 5 minutes renders `--color-text-faint` with its age; `failing` vitals dim and show
   `· 2m ago`. The server already makes the dot `degraded`; the UI does not recompute status.
-- A `down` service whose `control.actions` includes `restart` grows a single `restart →` link to
-  `/control#<id>`. It is a link, never a button, and never triggers anything.
+- A `down` service whose `control.actions` includes `restart` shows `restart →`, and its one link is
+  `/control#<id>` (decision #73). It is a link, never a button, and never triggers anything.
 - Search: one input and two (or N) real buttons from `search.buttons`, always visible. Empty input
   disables all of them. Enter submits the first. `buildSearchURL` URL-encodes the query and replaces
   the single `{q}`; it opens the result in the same tab.

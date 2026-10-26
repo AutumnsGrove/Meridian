@@ -101,7 +101,8 @@ Sections are `everyday` then `backbone`; an empty section renders nothing at all
 heading over blank space.
 
 **Tile anatomy** — the whole tile is the link (no nested targets), name on the left, status dot on
-the right, vital number or subtitle underneath in `--color-text-dim`. Minimum height 76px, which
+the right, vital number or subtitle underneath in `--color-text-dim`. One tile is one target, so the
+`restart →` case below replaces the link rather than adding a second one (decision #73). Minimum height 76px, which
 comfortably clears the 44px touch target even with the padding.
 
 **Down tiles offer a way in, not a way to act.** A tile whose service is down grows a single
