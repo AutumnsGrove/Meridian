@@ -1,0 +1,7 @@
+{
+  "id": "0192f0c4-6c1a-7f3b-9a10-2b6f7c1d8e44",
+  "action": "restart",
+  "target": "bwmon",
+  "ack": "",
+  "requested_at": "2026-10-23T18:04:11Z"
+}
