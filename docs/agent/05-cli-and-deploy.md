@@ -147,7 +147,8 @@ the grammar, never start with `-`, contain no whitespace).
   they get a test.
 - `ci.yml` `image` job: `docker buildx build` for `linux/amd64` and `linux/arm64` (no push), Trivy scan
   failing on HIGH and CRITICAL, then run the amd64 image against `testdata/portable/config.yaml`
-  with the stub upstream and assert `/healthz` and `/api/status` through `meridian healthcheck`.
+  with the stub upstream and assert `/healthz` and `/api/status` through `meridian healthcheck`
+  (`scripts/smoke-image`, so the step is shellcheck'd, readable and can be run by hand).
 
 **Done when**: `docker build` works locally and in CI for both architectures, the smoke test passes,
 and the compose invariants test is green.

@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Run one built image against the portable fixture and prove it answers /healthz and /api/status.
+#
+# Usage: scripts/smoke-image IMAGE
+#
+# This is the smoke step of the image job in ci.yml; it is not part of scripts/check because it needs
+# a Docker daemon. Nothing real is touched: the fixture's probe URLs point at testdata/stub on
+# loopback, which is why the container runs with host networking here, exactly as compose does.
+#
+# It needs real host networking, which means a Linux daemon (CI, the box): Docker Desktop on macOS
+# hands the container the VM's network namespace, so the app's loopback is not the caller's.
+#
+# The fixture names 127.0.0.1:8891, so this script needs that port free.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+image=${1:-}
+if [ -z "$image" ]; then
+	printf 'usage: scripts/smoke-image IMAGE\n' >&2
+	exit 2
+fi
+
+for tool in docker go curl jq; do
+	if ! command -v "$tool" >/dev/null 2>&1; then
+		printf 'smoke-image: %s not found\n' "$tool" >&2
+		exit 1
+	fi
+done
+
+workdir=$(mktemp -d)
+container=meridian-smoke
+stub_pid=
+
+cleanup() {
+	if [ -n "$stub_pid" ]; then
+		kill "$stub_pid" 2>/dev/null || true
+	fi
+	docker rm -f "$container" >/dev/null 2>&1 || true
+	rm -rf "$workdir"
+}
+trap cleanup EXIT
+
+now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+cat > "$workdir/host.json" <<JSON
+{
+  "at": "$now",
+  "host": {"uptime_s": 1000, "load1": 0.1},
+  "units": {"backup.service": {"active": true, "since": "$now"}},
+  "tailscale": {"online": true, "exit_node": false, "peers_online": 1, "peers_total": 2}
+}
+JSON
+
+# Build the stub rather than `go run` it, so the pid this script stops is the listener itself.
+go build -o "$workdir/stub" ./testdata/stub
+"$workdir/stub" -addr 127.0.0.1:3000 &
+stub_pid=$!
+
+ready=0
+for _ in $(seq 1 50); do
+	if curl -fsS http://127.0.0.1:3000/healthz >/dev/null 2>&1; then
+		ready=1
+		break
+	fi
+	sleep 0.2
+done
+if [ "$ready" != 1 ]; then
+	printf 'smoke-image: the stub upstream never came up\n' >&2
+	exit 1
+fi
+
+# The same flags compose uses, minus the ones the fixture does not need.
+docker run -d --name "$container" \
+	--network host \
+	--read-only \
+	--cap-drop ALL \
+	--security-opt no-new-privileges \
+	--pids-limit 64 \
+	--tmpfs /tmp \
+	-v "$PWD/testdata/portable/config.yaml:/config/config.yaml:ro" \
+	-v "$workdir:/status:ro" \
+	"$image" >/dev/null
+
+# Docker's own healthcheck is the binary's healthcheck, which is the thing under test; retrying here
+# keeps a slow first poll from failing the job.
+ready=0
+for _ in $(seq 1 60); do
+	if docker exec "$container" /meridian healthcheck >/dev/null 2>&1; then
+		ready=1
+		break
+	fi
+	sleep 1
+done
+if [ "$ready" != 1 ]; then
+	printf 'smoke-image: the image never answered its own healthcheck\n' >&2
+	docker logs "$container" >&2 || true
+	exit 1
+fi
+
+status=$(curl -fsS http://127.0.0.1:8891/api/status)
+if ! printf '%s' "$status" | jq -e '.services | length == 4' >/dev/null; then
+	printf 'smoke-image: /api/status does not describe the portable fixture:\n%s\n' "$status" >&2
+	exit 1
+fi
+if ! printf '%s' "$status" | jq -e '.summary.total == 4' >/dev/null; then
+	printf 'smoke-image: the summary does not count the fixture:\n%s\n' "$status" >&2
+	exit 1
+fi
+
+printf 'smoke-image: %s serves the portable fixture\n' "$image"
