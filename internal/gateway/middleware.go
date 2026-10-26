@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"runtime/debug"
@@ -81,6 +82,14 @@ func HostAllowed(host string, allowed []string) bool {
 	return false
 }
 
+// isIPv6Literal reports whether a bracketed name is an IPv6 address. IPvFuture (a bracket around a
+// version and an arbitrary string) is refused: nothing here speaks it, and accepting any string in
+// brackets is how a malformed Host header matches an allowlist entry by accident.
+func isIPv6Literal(name string) bool {
+	ip := net.ParseIP(name)
+	return ip != nil && strings.Contains(name, ":")
+}
+
 // splitHost separates a Host header into its name and port. It reports an empty name for anything
 // that is not a plausible host, so a malformed header matches nothing.
 func splitHost(host string) (name, port string, hasPort bool) {
@@ -95,6 +104,11 @@ func splitHost(host string) (name, port string, hasPort bool) {
 		// loopback host, not a different name.
 		end := strings.Index(lowered, "]")
 		if end < 0 {
+			return "", "", false
+		}
+		// What is inside the brackets has to be an address. Without that, "[hub.example.org]"
+		// matched the allowlist entry of the same name and any string in brackets became a host.
+		if !isIPv6Literal(lowered[1:end]) {
 			return "", "", false
 		}
 		rest := lowered[end+1:]

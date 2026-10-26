@@ -524,6 +524,10 @@ func TestHostAllowed(t *testing.T) {
 		{name: "an empty host", host: "", want: false},
 		{name: "a host with a trailing dot", host: "hub.example.org.", want: false},
 		{name: "an uppercase loopback name", host: "LOCALHOST:8891", want: true},
+		{name: "an IPv6 loopback with a bare port", host: "[::1]:]", want: true},
+		{name: "a bracket around something that is not an address", host: "[0]:]", want: false},
+		{name: "a bracketed name", host: "[hub.example.org]", want: false},
+		{name: "a bracket that never closes", host: "[::1", want: false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
