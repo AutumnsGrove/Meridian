@@ -1,6 +1,8 @@
 package gateway
 
 import (
+	"context"
+	"net/http"
 	"strings"
 	"time"
 
@@ -259,4 +261,53 @@ func ageSeconds(now, at time.Time) int64 {
 		return 0
 	}
 	return int64(age / time.Second)
+}
+
+// statusFreshWait bounds a page load's wait for fresh probe results. Six seconds is the whole cycle's
+// ceiling: a slow service is reported as a timeout rather than holding the page (decision #35).
+const statusFreshWait = 6 * time.Second
+
+// status answers the launcher's one API call. A page load touches the scheduler, waits for any
+// service whose result is older than the poll interval, and then answers from the store: the browser
+// never triggers a probe itself (decision #11).
+func status(deps Deps) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cfg, load := deps.current()
+		available, reason := deps.control()
+
+		if cfg == nil {
+			// No configuration has ever loaded. The answer is still 200 with ok=false, because the
+			// banner is what the page shows in that state.
+			writeJSON(w, http.StatusOK, BuildStatus(nil, nil, nil, deps.now(), StatusInputs{
+				Load: load, ControlAvailable: available, ControlReason: reason,
+			}))
+			return
+		}
+
+		if deps.Scheduler != nil {
+			deps.Scheduler.Touch()
+			if r.URL.Query().Get("fresh") == "1" {
+				deps.Scheduler.Refresh(r.Context())
+			}
+			wait, cancel := context.WithTimeout(r.Context(), statusFreshWait)
+			deps.Scheduler.EnsureFresh(wait, time.Duration(cfg.Poll.Interval))
+			cancel()
+		}
+
+		states := map[string]probe.State{}
+		if deps.Store != nil {
+			states = deps.Store.Snapshot()
+		}
+		var host *wire.HostSnapshot
+		if deps.Host != nil {
+			if snapshot, ok := deps.Host(); ok {
+				host = &snapshot
+			}
+		}
+
+		response := BuildStatus(cfg, states, host, deps.now(), StatusInputs{
+			Load: load, ControlAvailable: available, ControlReason: reason,
+		})
+		writeJSON(w, http.StatusOK, response)
+	})
 }

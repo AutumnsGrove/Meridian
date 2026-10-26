@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/autumnsgrove/meridian/internal/config"
+	"github.com/autumnsgrove/meridian/internal/probe"
+	"github.com/autumnsgrove/meridian/internal/wire"
 )
 
 // The documented server limits. WriteTimeout has to clear the six seconds a page load may wait for
@@ -52,6 +54,18 @@ type Deps struct {
 	ConfigDir string
 	// Static is the built app. A nil Static serves web.FS(), the app embedded in this binary.
 	Static fs.FS
+	// Store is the probe results the page is built from. A nil store means nothing has been probed.
+	Store *probe.Store
+	// Scheduler keeps those results current. A page load touches it and waits for a stale service.
+	Scheduler *probe.Scheduler
+	// Host reads the latest host snapshot. A nil Host, or no snapshot, leaves the host block null.
+	Host func() (wire.HostSnapshot, bool)
+	// Now is the clock that stamps the response. Nil means the wall clock.
+	Now func() time.Time
+	// ControlAvailable reports whether this box has a control plane (false throughout Phase 1).
+	ControlAvailable bool
+	// ControlReason explains its absence, when it is absent.
+	ControlReason string
 }
 
 // Route is one entry of the route table: a Go 1.22+ pattern and the handler that answers it.
@@ -61,10 +75,11 @@ type Route struct {
 }
 
 // Routes is the whole route table as data, so the invariants test can read it and prove the launcher
-// offers nothing but GET. T15 adds the status endpoint here.
+// offers nothing but GET.
 func Routes(deps Deps) []Route {
 	return []Route{
 		{Pattern: "GET /healthz", Handler: healthz(deps)},
+		{Pattern: "GET /api/status", Handler: status(deps)},
 		{Pattern: "GET /icons/{file}", Handler: icons(deps)},
 		{Pattern: "/", Handler: static(deps)},
 	}
@@ -170,6 +185,25 @@ func (deps Deps) current() (*config.Config, LoadStatus) {
 		return nil, LoadStatus{}
 	}
 	return deps.Current()
+}
+
+// now is the clock the response is stamped with.
+func (deps Deps) now() time.Time {
+	if deps.Now == nil {
+		return time.Now()
+	}
+	return deps.Now()
+}
+
+// control is the top-level control block: Phase 1 has no control plane, and says so.
+func (deps Deps) control() (available bool, reason string) {
+	if deps.ControlAvailable {
+		return true, ""
+	}
+	if deps.ControlReason != "" {
+		return false, deps.ControlReason
+	}
+	return false, "control plane not installed"
 }
 
 func (deps Deps) listen() string {

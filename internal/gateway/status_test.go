@@ -2,12 +2,19 @@ package gateway_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -413,4 +420,200 @@ func TestBuildStatus_GoldenFiles(t *testing.T) {
 			}
 		})
 	}
+}
+
+// stepClock is a probe.Clock the test advances by hand. Its timers never fire, so a probe pass only
+// happens when something nudges the scheduler, which makes every count in these tests deterministic.
+type stepClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (clock *stepClock) seams() probe.Clock {
+	return probe.Clock{Now: clock.Now, After: clock.After}
+}
+
+func (clock *stepClock) Now() time.Time {
+	clock.mu.Lock()
+	defer clock.mu.Unlock()
+	return clock.now
+}
+
+func (clock *stepClock) After(time.Duration) <-chan time.Time {
+	return make(chan time.Time)
+}
+
+func (clock *stepClock) Advance(delay time.Duration) {
+	clock.mu.Lock()
+	defer clock.mu.Unlock()
+	clock.now = clock.now.Add(delay)
+}
+
+// liveGateway is a gateway over a real store and scheduler, with a clock the test controls.
+func liveGateway(t *testing.T) (*testGateway, *probe.Store, *stepClock) {
+	t.Helper()
+	hub := newTestGateway(t)
+	clock := &stepClock{now: testNow}
+	store := &probe.Store{}
+	scheduler := probe.NewScheduler(probe.Env{}, store, clock.seams(), log.New(io.Discard, "", 0))
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	scheduler.Start(ctx, hub.cfg)
+
+	hub.deps.Store = store
+	hub.deps.Scheduler = scheduler
+	hub.deps.Now = clock.Now
+	return hub, store, clock
+}
+
+func pollStatus(t *testing.T, hub *testGateway, query string) gateway.StatusResponse {
+	t.Helper()
+	response := hub.hostRequest(t, "hub.example.org", "/api/status"+query)
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET /api/status%s = %d, want 200 (body %q)", query, response.Code, response.Body.String())
+	}
+	var status gateway.StatusResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil {
+		t.Fatalf("the status body is not JSON: %v", err)
+	}
+	return status
+}
+
+// eventually waits for something the scheduler's goroutine does, bounded by a real deadline.
+func eventually(t *testing.T, what string, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		runtime.Gosched()
+	}
+	t.Fatalf("timed out waiting for %s", what)
+}
+
+func checkedAt(status gateway.StatusResponse) time.Time {
+	return status.Sections[0].Services[0].CheckedAt
+}
+
+func TestStatus_AnswersAFreshLoadAndServesTheCacheWhenItIsFresh(t *testing.T) {
+	hub, _, clock := liveGateway(t)
+
+	// Nothing has been polled, so the first load waits for a pass instead of showing an empty tile.
+	first := pollStatus(t, hub, "")
+	if got := checkedAt(first); !got.Equal(testNow) {
+		t.Fatalf("the first load checked at %v, want %v: it did not wait for a pass", got, testNow)
+	}
+	if first.Sections[0].Services[0].Status != probe.StatusOK {
+		t.Fatalf("status = %q, want ok", first.Sections[0].Services[0].Status)
+	}
+
+	// Twenty seconds later the result is stale, so the load waits for another pass.
+	clock.Advance(20 * time.Second)
+	stale := pollStatus(t, hub, "")
+	if got := checkedAt(stale); !got.Equal(testNow.Add(20 * time.Second)) {
+		t.Fatalf("a stale load checked at %v, want %v", got, testNow.Add(20*time.Second))
+	}
+
+	// One second after that it is fresh, so the answer is the cache and generated_at says how old.
+	clock.Advance(time.Second)
+	fresh := pollStatus(t, hub, "")
+	if got := checkedAt(fresh); !got.Equal(testNow.Add(20 * time.Second)) {
+		t.Fatalf("a fresh load checked at %v, want the cached %v", got, testNow.Add(20*time.Second))
+	}
+	if !fresh.GeneratedAt.Equal(testNow.Add(21 * time.Second)) {
+		t.Fatalf("generated_at = %v, want the clock's now", fresh.GeneratedAt)
+	}
+}
+
+func TestStatus_StartsAPassForAManualRefresh(t *testing.T) {
+	hub, store, clock := liveGateway(t)
+	if got := checkedAt(pollStatus(t, hub, "")); !got.Equal(testNow) {
+		t.Fatalf("the first load checked at %v, want %v", got, testNow)
+	}
+
+	clock.Advance(time.Second)
+	pollStatus(t, hub, "?fresh=1")
+
+	// The response may still be the cache: a manual refresh starts the pass and does not hold the
+	// page. The new result lands in the store.
+	eventually(t, "the refreshed pass", func() bool {
+		return store.Snapshot()["one"].CheckedAt.Equal(testNow.Add(time.Second))
+	})
+}
+
+func TestStatus_CarriesTheControlBlockAndTheLoadStatus(t *testing.T) {
+	hub := newTestGateway(t)
+	hub.deps.ControlAvailable = true
+	hub.load = gateway.LoadStatus{LoadedAt: testNow, Error: "services[0].probes.health: probe_kind_unknown"}
+
+	status := pollStatus(t, hub, "")
+	if !status.Control.Available {
+		t.Fatalf("control = %+v, want available", status.Control)
+	}
+	if status.Config.OK || status.Config.Error == "" {
+		t.Fatalf("config = %+v, want the rejected reload", status.Config)
+	}
+}
+
+// FuzzBuildStatus feeds arbitrary probe results through the contract: it must never panic, always
+// marshal, and always answer with the closed status set in config order.
+func FuzzBuildStatus(f *testing.F) {
+	f.Add([]byte{0x00}, []byte{0x00}, int64(0))
+	f.Add([]byte{0x01, 0x02, 0x03, 0x04}, []byte{0x05, 0x06}, int64(-1000))
+	f.Add([]byte{0xff, 0xff, 0xff}, []byte{0xff}, int64(1<<40))
+
+	cfg, _, err := config.Parse([]byte(contractConfig))
+	if err != nil {
+		f.Fatalf("parse the contract config: %v", err)
+	}
+	closedSet := []probe.Status{
+		probe.StatusOK, probe.StatusDegraded, probe.StatusDown, probe.StatusUnknown, probe.StatusDisabled,
+	}
+	statuses := []probe.Status{probe.StatusOK, probe.StatusDown, probe.StatusUnknown, "", "bogus"}
+	codes := []string{"", probe.CodeTimeout, probe.CodeBadStatus, probe.CodeMissingField, "not a code"}
+
+	f.Fuzz(func(t *testing.T, ids, kinds []byte, offset int64) {
+		states := map[string]probe.State{}
+		for index, octet := range ids {
+			service := cfg.Services[index%len(cfg.Services)]
+			kindsAt := byte(0)
+			if len(kinds) > 0 {
+				kindsAt = kinds[index%len(kinds)]
+			}
+			states[service.ID] = probe.State{
+				Health:    probe.Health{Status: statuses[int(octet)%len(statuses)], Code: codes[int(kindsAt)%len(codes)]},
+				CheckedAt: testNow.Add(time.Duration(offset)),
+				Vitals: []probe.VitalState{{
+					Label:   string(rune('a' + index%26)),
+					Value:   string(kinds),
+					At:      testNow.Add(-time.Duration(octet) * time.Second),
+					Failing: octet%3 == 0,
+					Code:    codes[int(kindsAt)%len(codes)],
+				}},
+			}
+		}
+
+		response := gateway.BuildStatus(cfg, states, nil, testNow, gateway.StatusInputs{
+			Load: gateway.LoadStatus{LoadedAt: testNow, Error: string(kinds)},
+		})
+		if _, err := json.Marshal(response); err != nil {
+			t.Fatalf("the response does not marshal: %v", err)
+		}
+		for _, section := range response.Sections {
+			for index := range section.Services {
+				if status := section.Services[index].Status; !slices.Contains(closedSet, status) {
+					t.Fatalf("status %q is outside the closed set", status)
+				}
+			}
+		}
+		// Section order is config order, with empties omitted.
+		order := make([]string, 0, len(response.Sections))
+		for _, section := range response.Sections {
+			order = append(order, section.ID)
+		}
+		if !slices.Equal(order, []string{"first", "second"}) {
+			t.Fatalf("sections = %v, want config order [first second]", order)
+		}
+	})
 }
