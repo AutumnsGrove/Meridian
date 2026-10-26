@@ -309,3 +309,107 @@ func FuzzParseID(f *testing.F) {
 		}
 	})
 }
+
+func TestIsUnitName_AcceptsOnlyNamesSystemdCouldHave(t *testing.T) {
+	valid := []string{
+		"AdGuardHome.service",
+		"unbound.service",
+		"meridian-probe.timer",
+		"meridian-control.path",
+		"getty@tty1.service",
+		"systemd-fsck@dev-disk-by\x2duuid-1234.service",
+		"a.service",
+		"x.target",
+		strings.Repeat("a", 247) + ".service", // 255 characters, systemd's own limit
+		"tailscaled.socket",
+	}
+	for _, name := range valid {
+		t.Run("valid "+name, func(t *testing.T) {
+			if !wire.IsUnitName(name) {
+				t.Errorf("IsUnitName(%q) = false, want true", name)
+			}
+		})
+	}
+
+	invalid := []string{
+		"",
+		"--help",
+		"-n.service",
+		"../x.service",
+		"a b.service",
+		"a\tservice",
+		"a.service ",
+		" a.service",
+		"a.service\n",
+		"a.service;rm",
+		"a.sh",
+		"a.b",
+		".service",
+		"a.SERVICE",
+		"a.service.evil",
+		"a/../b.service",
+		strings.Repeat("a", 255) + ".service",
+		"\x00.service",
+	}
+	for _, name := range invalid {
+		t.Run("invalid "+name, func(t *testing.T) {
+			if wire.IsUnitName(name) {
+				t.Errorf("IsUnitName(%q) = true, want false", name)
+			}
+		})
+	}
+}
+
+// FuzzUnitName is the security property behind decision #38's host names: a name that passes the
+// grammar is an argv element the probe will hand to systemctl, so it can never look like a flag,
+// contain whitespace, or escape the unit namespace.
+func FuzzUnitName(f *testing.F) {
+	for _, seed := range []string{
+		"AdGuardHome.service",
+		"meridian-probe.timer",
+		"a.b",
+		"",
+		"--help",
+		"-x.service",
+		"../x.service",
+		"a b.service",
+		"a.service\n",
+		"@.service",
+		strings.Repeat("a", 300) + ".service",
+	} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, name string) {
+		if !wire.IsUnitName(name) {
+			return
+		}
+		if strings.HasPrefix(name, "-") {
+			t.Fatalf("IsUnitName(%q) accepted a leading dash", name)
+		}
+		if len(name) > 255 {
+			t.Fatalf("IsUnitName(%q) accepted %d characters", name, len(name))
+		}
+		if strings.ContainsAny(name, " \t\r\n") {
+			t.Fatalf("IsUnitName(%q) accepted whitespace", name)
+		}
+		if strings.ContainsRune(name, 0) {
+			t.Fatalf("IsUnitName(%q) accepted a NUL", name)
+		}
+		for i := 0; i < len(name); i++ {
+			character := name[i]
+			allowed := 'a' <= character && character <= 'z' ||
+				'A' <= character && character <= 'Z' ||
+				'0' <= character && character <= '9' ||
+				strings.ContainsRune(":_.@-", rune(character))
+			if !allowed {
+				t.Fatalf("IsUnitName(%q) accepted %q", name, character)
+			}
+		}
+		if !strings.HasSuffix(name, ".service") && !strings.HasSuffix(name, ".timer") &&
+			!strings.HasSuffix(name, ".socket") && !strings.HasSuffix(name, ".target") &&
+			!strings.HasSuffix(name, ".path") {
+			t.Fatalf("IsUnitName(%q) accepted a suffix the snapshot never carries", name)
+		}
+	})
+}

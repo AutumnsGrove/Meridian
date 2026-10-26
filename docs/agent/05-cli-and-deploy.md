@@ -101,8 +101,9 @@ func Collect(ctx context.Context, d Deps, units []string) wire.HostSnapshot
 - Unit list = union of `unit` fields from `/etc/meridian/targets.json` (when present) and
   `/etc/meridian/observe.json` (`{"units": ["…"]}`, how Phase 1 watches units before any control
   plane exists; decision #61). Both are read with the strict, size-capped, root-ownership-checked
-  loader shared with `hostexec`. Each name must match `^[A-Za-z0-9:_.@-]+\.(service|timer|socket|target)$`
-  and not start with `-`; anything else is dropped with a log line.
+  loader shared with `hostexec` (`internal/hostfile`). Each name must pass `wire.IsUnitName`:
+  `^[A-Za-z0-9:_.@-]+\.(service|timer|socket|target|path)$`, at most 255 characters, and never a
+  leading `-`; anything else is dropped with a log line (decision #79).
 - Per unit: `systemctl show <unit> -p ActiveState -p ActiveEnterTimestamp`, parsed as `key=value`
   lines. `active` is `ActiveState == "active"`. A unit that fails to show is **omitted**, so the
   container reports `unit_not_reported` rather than guessing.

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/autumnsgrove/meridian/internal/jsonpath"
@@ -163,4 +165,17 @@ func formatID(id [16]byte) string {
 		position += 2
 	}
 	return string(text[:])
+}
+
+// MaxUnitNameSize is systemd's own limit on a unit name, minus the terminating NUL.
+const MaxUnitNameSize = 255
+
+// unitNameGrammar is what the host accepts before it hands a name to systemctl: the characters
+// systemd allows in a unit name, one of the six unit types this project watches, and never a leading
+// dash, so a name from a root-owned file can never turn into a command-line flag.
+var unitNameGrammar = regexp.MustCompile(`^[A-Za-z0-9:_.@-]+\.(service|socket|timer|target|path)$`)
+
+// IsUnitName reports whether text is a systemd unit name the host may hand to systemctl.
+func IsUnitName(text string) bool {
+	return len(text) <= MaxUnitNameSize && !strings.HasPrefix(text, "-") && unitNameGrammar.MatchString(text)
 }
