@@ -75,7 +75,7 @@ service, P3 = all targets, P4 = self-update and install.
 
 ## Stage 5: CLI and Phase 1 deploy ([05-cli-and-deploy.md](05-cli-and-deploy.md))
 
-- [ ] **T20** `meridian run`, signals, SIGHUP reload, `healthcheck`, `version` (deps: T15)
+- [x] **T20** `meridian run`, signals, SIGHUP reload, `healthcheck`, `version` (deps: T15)
 - [ ] **T21** `meridian doctor` (deps: T20)
 - [ ] **T22** `meridian-host probe` and the `host.json` timer units (deps: T05)
 - [ ] **T23** Dockerfile, compose, image build in CI (deps: T20, T04, T19)
