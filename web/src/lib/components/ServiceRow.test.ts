@@ -19,7 +19,7 @@ describe('ServiceRow', () => {
 	test('shows the name, the state as a word, and one button per action', () => {
 		render(ServiceRow, { service: metrics, control });
 
-		expect(screen.getByRole('heading', { level: 3, name: 'Metrics' })).toBeTruthy();
+		expect(screen.getByRole('heading', { level: 2, name: 'Metrics' })).toBeTruthy();
 		expect(screen.getByText('healthy')).toBeTruthy();
 		expect(screen.getAllByRole('button').map((button) => button.textContent?.trim())).toEqual([
 			'start',

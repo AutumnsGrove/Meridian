@@ -32,10 +32,10 @@ describe('the control placeholder', () => {
 			expect(screen.getByText('Control plane not installed on this box')).toBeTruthy()
 		);
 		expect(screen.getByRole('heading', { level: 1, name: 'Control' })).toBeTruthy();
-		expect(screen.getByRole('heading', { level: 3, name: 'Metrics' })).toBeTruthy();
-		expect(screen.getByRole('heading', { level: 3, name: 'Gitea' })).toBeTruthy();
+		expect(screen.getByRole('heading', { level: 2, name: 'Metrics' })).toBeTruthy();
+		expect(screen.getByRole('heading', { level: 2, name: 'Gitea' })).toBeTruthy();
 		// Jellyfin and the backup daemon have no control block, so they are not rows.
-		expect(screen.queryByRole('heading', { level: 3, name: 'Jellyfin' })).toBeNull();
+		expect(screen.queryByRole('heading', { level: 2, name: 'Jellyfin' })).toBeNull();
 	});
 
 	test('no button on the page is enabled in Phase 1', async () => {

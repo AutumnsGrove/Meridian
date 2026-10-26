@@ -17,7 +17,7 @@
 
 <li class="row" id={service.id} class:highlighted={isHighlighted}>
 	<div class="head">
-		<h3>{service.name}</h3>
+		<h2>{service.name}</h2>
 		<StatusPill status={service.status} />
 	</div>
 	<p class="meta">{service.description}</p>
@@ -59,7 +59,7 @@
 		gap: 12px;
 	}
 
-	h3 {
+	h2 {
 		font-size: 16px;
 		font-weight: 500;
 	}
