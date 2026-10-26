@@ -38,7 +38,12 @@ open the files in `mockups/` at 390px wide; the mockups are the visual specifica
   empty when `ok`.
 - Everything the UI shows is already formatted by Go. The browser computes only ages from `at` and
   the local clock, and substitutes `{q}` into search templates.
-- `host` is `null` when `host_status` is not configured.
+- `host` is `null` when `host_status` is not configured, and also when it is configured but no
+  snapshot has been written yet: both mean "there is no host reading to show".
+- `checked_at` is the zero time before a service's first poll. The page shows nothing for an
+  `unknown` tile, so it never renders that as an age.
+- A `degraded` tile's `reason` is the sentence for the vital that failed; a `down` or `unknown` one
+  uses its health code; `ok` and `disabled` carry none.
 - `control` is `null` on a read-only tile. The top-level `control.available` says whether the
   control plane exists on this box at all (false throughout Phase 1).
 - Empty sections are **omitted** by the server (DESIGN: no heading over blank space).
@@ -62,8 +67,9 @@ Package `internal/gateway`.
   `/healthz` called by the container healthcheck uses a loopback host, so it passes.
 - `browserGuard` (mutating routes only): `Content-Type` must be exactly `application/json`;
   `Sec-Fetch-Site` if present must be `same-origin` or `none`; `Origin` if present must have a host
-  accepted by `hostCheck`; body capped at 8 KiB (`http.MaxBytesReader`). Anything else is `403`
-  with a JSON error. This is **not authentication**: no token, no cookie, no session, and it must not
+  accepted by `hostCheck`; body capped at 8 KiB (`http.MaxBytesReader`, and a declared body over
+  the cap is refused with `413` up front). Anything else is `403` with a JSON error. This is **not
+  authentication**: no token, no cookie, no session, and it must not
   grow into one (decision #10).
 - `GET /healthz`: `{"status":"ok","version":"…"}` 200 whenever the process can serve. No probing, no
   config reload state; cheap enough for a Docker healthcheck every few seconds.
