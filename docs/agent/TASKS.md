@@ -77,7 +77,7 @@ service, P3 = all targets, P4 = self-update and install.
 
 - [x] **T20** `meridian run`, signals, SIGHUP reload, `healthcheck`, `version` (deps: T15)
 - [x] **T21** `meridian doctor` (deps: T20)
-- [ ] **T22** `meridian-host probe` and the `host.json` timer units (deps: T05)
+- [x] **T22** `meridian-host probe` and the `host.json` timer units (deps: T05)
 - [ ] **T23** Dockerfile, compose, image build in CI (deps: T20, T04, T19)
 - [ ] **T24** `[human]` Phase 1 on the potato: verification checklist (deps: T21, T22, T23)
 
