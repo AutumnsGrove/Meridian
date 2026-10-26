@@ -13,18 +13,21 @@ describe('Tile', () => {
 	test('the whole tile is one link to the service, in the same tab', () => {
 		render(Tile, { service: gitea, now });
 
-		const link = screen.getByRole('link', { name: /^Gitea, healthy, version 1\.22\.0$/ });
+		const link = screen.getByRole('link', { name: /^Gitea healthy version 1\.22\.0$/ });
 
 		expect(link.getAttribute('href')).toBe('https://git.example.org');
 		expect(link.getAttribute('rel')).toBe('noopener noreferrer');
 		expect(link.getAttribute('target')).toBeNull();
 	});
 
-	test('a service with no URL is not a link at all', () => {
-		render(Tile, { service: backup, now });
+	test('a service with no URL is not a link at all, and still says what it is', () => {
+		const { container } = render(Tile, { service: backup, now });
+		const tile = screen.getByText('Backup daemon').closest('.tile');
 
 		expect(screen.queryByRole('link')).toBeNull();
-		expect(screen.getByRole('group', { name: 'Backup daemon, healthy, no web surface at all' }));
+		expect(container.querySelector('.tile')).toBe(tile);
+		expect(tile?.textContent).toContain('healthy');
+		expect(tile?.textContent).toContain('no web surface at all');
 	});
 
 	test('a down service that can be restarted offers one link into its control row', () => {

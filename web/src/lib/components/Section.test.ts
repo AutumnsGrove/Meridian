@@ -14,8 +14,10 @@ describe('Section', () => {
 		render(Section, { section, now });
 
 		expect(screen.getByRole('heading', { level: 2, name: 'Media' })).toBeTruthy();
-		expect(screen.getByRole('link', { name: 'Jellyfin, healthy, films and shows' })).toBeTruthy();
-		expect(screen.getByRole('group', { name: 'Metrics, healthy, peers 3 online' })).toBeTruthy();
+		expect(screen.getByRole('link', { name: 'Jellyfin healthy films and shows' })).toBeTruthy();
+		expect(screen.getByText('Metrics')).toBeTruthy();
+		expect(screen.getByText('peers')).toBeTruthy();
+		expect(screen.getByText('3 online')).toBeTruthy();
 	});
 
 	test('renders nothing at all for a section with no services', () => {

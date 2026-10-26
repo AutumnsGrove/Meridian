@@ -25,7 +25,7 @@
 
 <main class="shell">
 	<header class="top">
-		<span class="wordmark">Meridian</span>
+		<h1 class="wordmark">Meridian</h1>
 		{#if status}
 			<span class="summary">{summaryLabel(status)}</span>
 		{/if}

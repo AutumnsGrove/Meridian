@@ -121,8 +121,10 @@ no path forward would send you hunting, and "restart →" is the exact thought a
 | `unknown` | `○` grey | no probe configured, or the host status file has never been written |
 | `disabled` | `—` faint | configured off |
 
-Each also carries a visually hidden label ("Ivy, healthy") for screen readers, and the tile's
-`title`/`aria-label` spells the whole thing out.
+Each also carries a visually hidden label ("Ivy, healthy") for screen readers. The tile's accessible
+name is its **content**, not an `aria-label`: the status word and each vital's label are present as
+visually hidden text, so what a screen reader hears is what the tile shows, plus the words the shapes
+stand for. There is no second sentence to keep in sync.
 
 **Stale values are shown, not hidden.** A vital keeps its last good reading with its age
 (`0.5 GB today · 2m ago`, dimmed) rather than becoming `—`. If the age exceeds 5 minutes the value

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Service } from '#lib/api/types';
-	import { restartHref, tileLabel, tileMeta, vitalText, vitalTone } from '#lib/state/status';
+	import { restartHref, tileMeta, vitalText, vitalTone } from '#lib/state/status';
 	import StatusMark from './StatusMark.svelte';
 
 	let { service, now }: { service: Service; now: number } = $props();
@@ -10,7 +10,6 @@
 	// second target nested inside the first (docs/DESIGN.md "Launcher").
 	const controlHref = $derived(restartHref(service));
 	const href = $derived(controlHref ?? (service.url === '' ? null : service.url));
-	const label = $derived(tileLabel(service, now));
 </script>
 
 {#snippet body()}
@@ -21,7 +20,10 @@
 	{#if service.vitals.length > 0}
 		<span class="vitals">
 			{#each service.vitals as vital (vital.label)}
-				<span class="vital vital-{vitalTone(vital, now)}">{vitalText(vital, now)}</span>
+				<span class="vital vital-{vitalTone(vital, now)}">
+					<span class="visually-hidden">{vital.label}</span>
+					{vitalText(vital, now)}
+				</span>
 			{/each}
 		</span>
 	{:else}
@@ -32,10 +34,13 @@
 	{/if}
 {/snippet}
 
+<!-- The tile's accessible name is its content (docs/DESIGN.md "Launcher"): the vital labels and the
+     status word are hidden from sight, not from a screen reader, so there is nothing to keep in sync
+     with an aria-label (decision #78). -->
 {#if href}
-	<a class="tile" {href} rel="noopener noreferrer" aria-label={label}>{@render body()}</a>
+	<a class="tile" {href} rel="noopener noreferrer">{@render body()}</a>
 {:else}
-	<div class="tile" role="group" aria-label={label}>{@render body()}</div>
+	<div class="tile">{@render body()}</div>
 {/if}
 
 <style>

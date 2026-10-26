@@ -18,6 +18,8 @@ config.yaml
 
 # Frontend
 web/node_modules/
+web/test-results/
+web/playwright-report/
 web/.svelte-kit/
 web/build/*
 !web/build/.gitkeep

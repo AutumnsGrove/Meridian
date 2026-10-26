@@ -2,15 +2,7 @@ import { loadStatus, serviceNamed } from '../../../test/golden';
 import { describe, expect, test } from 'vitest';
 import type { PollState } from './poller';
 import { initialPollState } from './poller';
-import {
-	bannerText,
-	restartHref,
-	statusWord,
-	summaryLabel,
-	tileLabel,
-	vitalText,
-	vitalTone
-} from './status';
+import { bannerText, restartHref, statusWord, summaryLabel, vitalText, vitalTone } from './status';
 import { SERVICE_STATUSES } from '#lib/api/types';
 
 const status = loadStatus('status.all-ok.golden.json');
@@ -113,23 +105,6 @@ describe('vitalText', () => {
 	test('adds how old the reading is once it is a minute old', () => {
 		expect(vitalText({ ...vital, at: new Date(now - 120_000).toISOString() }, now)).toBe(
 			'3 online · 2m ago'
-		);
-	});
-});
-
-describe('tileLabel', () => {
-	test('spells out the name, the state and every value, so a screen reader needs nothing else', () => {
-		const gitea = serviceNamed(status, 'Gitea');
-
-		expect(tileLabel(gitea, now)).toBe('Gitea, healthy, version 1.22.0');
-	});
-
-	test('includes the reason when the tile is not healthy', () => {
-		const degraded = loadStatus('status.degraded-stale-vital.golden.json');
-		const gitea = serviceNamed(degraded, 'Gitea');
-
-		expect(tileLabel(gitea, now)).toBe(
-			'Gitea, degraded, it did not answer in time, version 1.22.0 · 9m ago'
 		);
 	});
 });
