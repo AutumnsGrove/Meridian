@@ -27,68 +27,67 @@ Anything that needs your hands (a secret, a GitHub setting, a [human] gate) or y
 
 ---
 
-## Last session: S10 (2026-10-26)
+## Last session: S11 (2026-10-26)
 
-Finished: T22, T23, both ticked.
+Finished: **T25, T26**, both ticked. The control plane's container half exists end to end and the
+host half has its contract.
 
-- **T22** `meridian-host probe` exists end to end. `internal/hostfile` reads the files the host trusts
-  (regular file, expected uid, not group/other-writable, size cap, `O_NOFOLLOW`) and is the package
-  T27's `loadTrusted` should reuse. `wire.IsUnitName` is the one unit-name grammar. `internal/hostprobe`
-  collects unit states from `systemctl show`, the tailnet from `tailscale status --json`, uptime and
-  load from `/proc`, merges `observe.json` + the allowlist's `unit` fields, and writes the snapshot
-  through `atomicfile`; a source that fails is omitted, never guessed. `cmd/meridian-host` dispatches
-  `probe`; `deploy/systemd/meridian-probe.{service,timer}` are the timer (oneshot, deploy user,
-  sandboxed, `@DEPLOY_USER@`/`@STATUS_DIR@` for the installer).
-- **T23** `Dockerfile` (Node build, Go cross-compile from `$BUILDPLATFORM`, distroless static nonroot,
-  every base pinned by digest), `.dockerignore`, `deploy/docker-compose.yml` + `deploy/.env.example`,
-  a compose invariants rule in `internal/invariants` with three failing fixtures, a `ci.yml` `image`
-  job (buildx both arches, Trivy, smoke) and `scripts/smoke-image`.
+- **T25** `internal/wire/control.go`: `Action` (six, with the acknowledgement each needs and the DNS
+  variant), `Request`/`Result`/`AuditLine`, the closed `Code` table with one user sentence each,
+  `*Refusal`, `ValidateRequest` (structure only), strict `DecodeRequest`/`DecodeResult`/
+  `DecodeAuditLine` (4/8/8 KiB caps, no unknown fields, no trailing data), `IsSlug`. Goldens in
+  `testdata/wire/`, exact bytes, fuzzers `FuzzDecodeRequest`, `FuzzDecodeResult`. `config` now takes
+  the slug grammar and action vocabulary from `wire` instead of its own copies.
+- **T26** `internal/control`: `Plane{Config, Host, Now, Random}`, `Available`, `Enqueue` (validate →
+  config policy → queue depth → duplicate → ack → atomic write through `os.Root`), `Status`
+  (executor health from `meridian-control.path` in the snapshot and the 15s unclaimed rule, pending,
+  last 20 results, audit tail capped at 256 KiB, derived auto-restore). `atomicfile.WriteRoot` is new
+  for the rooted write. Gateway: `POST /api/control` (202 + id, codes 400/409/429/503) and
+  `GET /api/control/status`; availability is read from the directories per request. Golden:
+  `testdata/control/status.golden.json` (its own directory, see gotchas).
 
 Partial: none.
 
 ## Next
 
-Session **S11**, first task **T25** (control wire types and validators). Read `docs/agent/06-control.md`
-from T25 and `docs/CONTROL.md` (the implementation notes at the top matter: `inbox/{tmp,queue}`,
-`outbox/results`, decision #62-#67).
+Session **S12**, first task **T27** (`meridian-host exec` core), which is the big one: allowlist
+loading through `hostfile`, the `Decide` pure core, result/audit writing, prune, flock. Read
+`docs/agent/06-control.md` from T27 and `docs/CONTROL.md` "The allowlist" and "Guards".
 
 ## State of the tree
 
-Clean and green under the full `scripts/check` (28 e2e tests, fuzz pass, security). 53 commits
+Clean and green under the full `scripts/check` (28 e2e tests, fuzz pass, security). 66 commits
 unpushed; `origin/main` is still the S3 tip, so CI has never run any of it.
 
 ## Gotchas
 
-- **The image job has never run.** Locally `docker build` succeeded and
-  `docker buildx build --platform linux/amd64,linux/arm64` produced both; the loaded image answered
-  `/healthz` through `docker exec … /meridian healthcheck` and served `/api/status` plus the SPA (200,
-  `text/html`) when queried from a curl container sharing its netns. `scripts/smoke-image` itself
-  could **not** run on macOS: Docker Desktop gives the container the VM's network namespace, so the
-  app's loopback is not the caller's. It is Linux-only (CI, the box); its first real run is CI.
-- The compose rule rejects these substrings anywhere in the file, comments included: `docker.sock`,
-  `/etc/meridian`, `privileged:`, `ports:`, `pid: host`, `network_mode: bridge`. Watch wording.
-- `wire.IsUnitName` now accepts `.path` (decision #79), because T31 puts `meridian-control.path` in
-  `observe.json`. Anything else is dropped from the probe's watch list with a log line.
-- The probe omits a unit when `systemctl show` exits non-zero, and leaves `since` zero when the
-  timestamp will not parse; the timestamp is parsed in the local zone because systemd prints it so.
-  macOS has no `/proc`: never call `hostprobe.RealDeps()` from a test, inject the readings.
-- `hostfile.Read` takes the expected owner, so tests can own their fixtures. `probe` passes uid 0;
-  the executor must too.
-- Base images are pinned by digest; take a new one from the registry's **index** manifest (the build
-  needs both arches), not from a tag.
-- Still true: the e2e fixture copy is made by `replaceAll` on four exact strings, so editing
-  `testdata/portable/config.yaml` means editing `global-setup.ts`; a tile's accessible name is its
-  content (no `aria-label`); skip links and the flip test's ~31s wait are deliberate; `workers: 1`.
-- Still true: SvelteKit 3 configures itself from `vite.config.ts`; `#lib` is a package subpath;
-  `ssr.noExternal: ['cookie']` is load-bearing; the build re-creates `build/.gitkeep`; TypeScript
-  stays 6.x; goldens are read via `web/test/golden.ts`; `cli.Main` takes a stdin reader.
+- **`testdata/api` is globbed by the web client as `/api/status` documents.** Any other golden there
+  fails `vitest` (`parseStatus`). The control view's golden lives in `testdata/control/` for that
+  reason; T30 will need its own loader next to `web/test/golden.ts`.
+- `Status` never fails: a corrupt result, a half-written audit line, a bad id or a missing `results/`
+  directory costs that entry and nothing else. `Available` is the only thing that distinguishes
+  "not installed" from "empty".
+- Executor health: an unclaimed request (older than 15s) forces `missing` even when the snapshot says
+  the path unit is active, and `Since` still comes from the unit. `unknown` covers no snapshot, a
+  stale snapshot (`host_status.max_age`) and a snapshot without the unit.
+- `Enqueue` refuses locally with the executor's own codes. `cancel-autorestore` is accepted for any
+  target that exists in config, not only ones listing it in `actions` (config's action vocabulary
+  cannot hold it). `reboot` needs `control.reboot: true` and target `host`.
+- 409 is a duplicate (`coalesced`), 429 is a full queue, 503 is `unavailable`. The code is the
+  contract; the HTTP status is derived from it in `refusalStatus`.
+- `atomicfile.WriteRoot` is the only writer that goes through an `os.Root`; `os.Root` has no
+  `CreateTemp`, so it generates a random suffix itself and calls `Root.Rename`.
+- Still true: the e2e fixture copy is made by `replaceAll` on four exact strings in
+  `web/test/e2e/global-setup.ts`; a tile's accessible name is its content; `workers: 1`; the flip
+  test's ~31s wait is deliberate; `scripts/smoke-image` is Linux-only; base images pinned by digest;
+  SvelteKit configures itself from `vite.config.ts`; goldens are read via `web/test/golden.ts`;
+  `cli.Main` takes a stdin reader; `hostfile.Read` takes the expected owner (pass uid 0 from root).
 - A fuzz job that goes red is answered by committing the crasher, never by re-running.
 
 ## For the owner
 
-- 53 commits unpushed. The next push is the first CI run of everything since S3, now including the
+- 66 commits unpushed. The next push is the first CI run of everything since S3, including the
   `image` job (multi-arch build, Trivy, the Linux-only smoke test). Worth watching.
 - Dependabot's npm job will offer TypeScript 7, which breaks the `svelte-check` peer range: it needs
   a decision, not a merge. The Docker ecosystem will also start offering base-image digest bumps.
-- T24 (Phase 1 on the potato) is now unblocked in code terms: T21, T22 and T23 are ticked. The
-  `[human]` gates (T24, T32, T33, T37) are still open.
+- `[human]` gates T24, T32, T33, T37 are still open. T24 (Phase 1 on the potato) is code-unblocked.
