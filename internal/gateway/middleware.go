@@ -91,7 +91,9 @@ func splitHost(host string) (name, port string, hasPort bool) {
 	}
 	lowered := strings.ToLower(host)
 	if strings.HasPrefix(lowered, "[") {
-		end := strings.LastIndex(lowered, "]")
+		// The first closing bracket ends the IPv6 literal: "[::1]:]" is a malformed port on a
+		// loopback host, not a different name.
+		end := strings.Index(lowered, "]")
 		if end < 0 {
 			return "", "", false
 		}

@@ -602,26 +602,19 @@ func referenceLoopback(host string) bool {
 		return false
 	}
 	lowered := strings.ToLower(host)
-	name, port := lowered, ""
-	if strings.HasPrefix(lowered, "[") {
-		end := strings.Index(lowered, "]")
-		if end < 0 {
-			return false
+	for _, name := range []string{"localhost", "127.0.0.1"} {
+		if lowered == name {
+			return true
 		}
-		name, port = lowered[:end+1], lowered[end+1:]
-	} else if index := strings.LastIndex(lowered, ":"); index >= 0 {
-		name, port = lowered[:index], lowered[index:]
+		// A bare name takes one colon and then a port; a second colon is not a host at all.
+		if port, ok := strings.CutPrefix(lowered, name+":"); ok && !strings.Contains(port, ":") {
+			return true
+		}
 	}
-	if name != "localhost" && name != "127.0.0.1" && name != "[::1]" {
-		return false
+	if lowered == "[::1]" || strings.HasPrefix(lowered, "[::1]:") {
+		return strings.Index(lowered, "]") == len("[::1]")-1
 	}
-	if port == "" {
-		return true
-	}
-	if !strings.HasPrefix(port, ":") {
-		return false
-	}
-	return !strings.ContainsAny(port[1:], ":[]")
+	return false
 }
 
 // referenceSplit separates a Host header into its name and whether it named a port.
