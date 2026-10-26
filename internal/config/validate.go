@@ -9,18 +9,26 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/autumnsgrove/meridian/internal/wire"
 )
 
 var (
-	slugPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 	lucidePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 	imagePattern  = regexp.MustCompile(`^icons/[A-Za-z0-9._-]+\.(png|webp|jpg|jpeg|gif)$`)
 	envPattern    = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 	headerPattern = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
 )
 
-// controlActions is the closed set a service may offer (documents/CONTROL.md).
-var controlActions = map[string]bool{"restart": true, "start": true, "stop": true, "update": true}
+// controlActionList is the action vocabulary in display order, for the validation message.
+var controlActionList = func() string {
+	actions := wire.TargetActions()
+	words := make([]string, len(actions))
+	for i, action := range actions {
+		words[i] = string(action)
+	}
+	return strings.Join(words, ", ")
+}()
 
 // Validate checks a parsed config and returns everything wrong with it at once, plus the things
 // that load but will not do what their author meant.
@@ -90,7 +98,7 @@ func (validator *validator) validateSections(parsed *Config) {
 	seen := make(map[string]bool, len(parsed.Sections))
 	for i, section := range parsed.Sections {
 		path := fmt.Sprintf("sections[%d]", i)
-		if !slugPattern.MatchString(section.ID) {
+		if !wire.IsSlug(section.ID) {
 			validator.fail(path+".id", CodeSectionIDInvalid, "%q is not a slug like my-app", section.ID)
 		}
 		if seen[section.ID] {
@@ -190,7 +198,7 @@ func (validator *validator) validateServices(parsed *Config) {
 		service := &parsed.Services[i]
 		path := fmt.Sprintf("services[%d]", i)
 
-		if !slugPattern.MatchString(service.ID) {
+		if !wire.IsSlug(service.ID) {
 			validator.fail(path+".id", CodeServiceIDInvalid, "%q is not a slug like my-app", service.ID)
 		}
 		if seen[service.ID] {
@@ -391,7 +399,7 @@ func (validator *validator) validateAuth(path string, auth *Auth) {
 }
 
 func (validator *validator) validateServiceControl(path string, control *ServiceControl) {
-	if !slugPattern.MatchString(control.Target) {
+	if !wire.IsSlug(control.Target) {
 		validator.fail(path+".target", CodeControlTargetInvalid, "%q is not a slug", control.Target)
 	}
 	if len(control.Actions) == 0 {
@@ -401,9 +409,9 @@ func (validator *validator) validateServiceControl(path string, control *Service
 	seen := make(map[string]bool, len(control.Actions))
 	hasStop := false
 	for i, action := range control.Actions {
-		if !controlActions[action] {
+		if !wire.IsTargetAction(wire.Action(action)) {
 			validator.fail(fmt.Sprintf("%s.actions[%d]", path, i), CodeControlActionsInvalid,
-				"%q is not one of start, stop, restart, update", action)
+				"%q is not one of "+controlActionList, action)
 		}
 		if seen[action] {
 			validator.fail(fmt.Sprintf("%s.actions[%d]", path, i), CodeControlActionsInvalid,
