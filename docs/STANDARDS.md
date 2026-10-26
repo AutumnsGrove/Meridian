@@ -278,7 +278,8 @@ invariants test). Test-only helpers: none; use the standard library.
 (+ svelte plugin), `prettier` (+ svelte plugin), `vitest`, `@testing-library/svelte`, `jsdom`,
 `@playwright/test`, `@axe-core/playwright`, `fast-check`. The toolchain's required companions are
 allowed with the package that needs them (decision #72): `@sveltejs/vite-plugin-svelte`,
-`typescript-eslint`, `@eslint/js`, `@testing-library/dom`.
+`typescript-eslint`, `@eslint/js`, `@testing-library/dom`, and `@types/node` for the Node-side
+scripts Vite and Playwright run (decision #75).
 
 Adding anything else needs a new decision entry saying what it replaces and why the standard
 library or existing dependency is not enough. Versions are pinned by the lockfiles; upgrades arrive

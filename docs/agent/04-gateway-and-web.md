@@ -212,8 +212,10 @@ It needs `meridian run` (T20) to start the binary, so it comes after S8 (decisio
 
 - `testdata/stub/main.go` (run with `go run ./testdata/stub`): a tiny upstream that serves the
   fixture's probe endpoints and has a control endpoint to flip a service up or down. `globalSetup`
-  starts it and `meridian run --config testdata/portable/config.yaml`, on free ports, waits for
-  `/healthz`.
+  starts it and `dist/meridian run --config <copy of the fixture>`, on free ports, waits for
+  `/healthz`, and warms the first poll. It substitutes three things into its copy of the fixture:
+  the app's port, the stub's address in front of both HTTP probe paths, and the path of a `host.json`
+  it writes and refreshes every 30s, standing in for the host-side probe.
 - Project 1 viewport 390x844 (the layout-deciding one), project 2 viewport 1440x900.
 - Cases: launcher renders both sections; tiles meet the 44px minimum; no horizontal scroll at 390 and
   at 200% zoom; flipping a stub service down turns its tile `✕` with a `restart →` link within a poll
@@ -223,6 +225,13 @@ It needs `meridian run` (T20) to start the binary, so it comes after S8 (decisio
   `/control` buttons are all disabled in Phase 1.
 - Global assertions: **every network request is same-origin**, no console errors or warnings, no
   response lacks the security headers, CSP present on the document.
+
+**As built** (S9): one worker, because one binary and one stub are shared and the flip test changes
+both; the stale-vital case moves the browser's clock instead of waiting five minutes (decision #76);
+the fixture's search button is the one origin a page may leave, and the search test intercepts it so
+no request is sent (decision #58). The first run in a real browser immediately earned its keep: a CSP
+violation on every load from SvelteKit's route announcer, no level-one heading, two axe heading and
+label mismatches, and a portable fixture whose host health probe could never be satisfied.
 
 **Stage done**: `scripts/check all` is green with the e2e group; opening the built app shows the
 portable fixture correctly at both widths.
