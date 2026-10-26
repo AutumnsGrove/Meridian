@@ -85,7 +85,7 @@ service, P3 = all targets, P4 = self-update and install.
 
 - [x] **T25** Control wire types and validators (deps: T05)
 - [x] **T26** Container side: enqueue, results, status, `/api/control` (deps: T25, T14)
-- [ ] **T27** `meridian-host exec` core: allowlist, validation, results, audit, prune (deps: T25)
+- [x] **T27** `meridian-host exec` core: allowlist, validation, results, audit, prune (deps: T25)
 - [ ] **T28** Runners: systemd, compose, container, host, run-as, timeouts (deps: T27)
 - [ ] **T29** DNS auto-restore and cancel, reboot, Meridian self-restart (deps: T28)
 - [ ] **T30** Control UI: armed buttons, countdown, banners, reconnect (deps: T26, T18)
