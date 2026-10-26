@@ -11,11 +11,15 @@
 		disabled: '—'
 	};
 
-	let { status }: { status: ServiceStatus } = $props();
+	// A parent that already speaks the status (a pill with a visible word, a tile with an aria-label)
+	// turns the hidden label off so it is not read twice.
+	let { status, showLabel = true }: { status: ServiceStatus; showLabel?: boolean } = $props();
 </script>
 
 <span class="mark mark-{status}" aria-hidden="true">{MARKS[status]}</span>
-<span class="visually-hidden">{statusWord(status)}</span>
+{#if showLabel}
+	<span class="visually-hidden">{statusWord(status)}</span>
+{/if}
 
 <style>
 	.mark {
