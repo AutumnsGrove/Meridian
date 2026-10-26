@@ -75,8 +75,10 @@ services:
     section: media
     icon: activity
     description: raw host values, no HTTP
+    # A host_field health probe reads a flag, so this tile asks whether the host says its tailnet is
+    # up. A number here (load, uptime) is a missing reading, not a healthy one.
     probes:
-      health: {kind: host_field, path: host.load1}
+      health: {kind: host_field, path: tailscale.online}
       vitals:
         - {kind: host_field, label: peers, path: tailscale.peers_online, suffix: online}
     control: {target: metrics, dns: true, actions: [start, restart, stop]}
