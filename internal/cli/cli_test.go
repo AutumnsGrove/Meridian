@@ -12,7 +12,7 @@ import (
 
 func run(args ...string) (code int, stdout, stderr string) {
 	var out, errOut bytes.Buffer
-	code = cli.Main(args, &out, &errOut)
+	code = cli.Main(args, strings.NewReader(""), &out, &errOut)
 	return code, out.String(), errOut.String()
 }
 

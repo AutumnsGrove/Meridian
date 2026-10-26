@@ -32,6 +32,7 @@ const usage = `usage: meridian <command> [flags]
 
 commands:
   run          serve the dashboard until asked to stop
+  doctor       explain the config against the world, read only
   healthcheck  ask the running dashboard whether it is alive
   version      print the build version
   help         print this help
@@ -39,6 +40,10 @@ commands:
 run flags:
   --config PATH  configuration file (default $MERIDIAN_CONFIG, then /config/config.yaml)
   --watch        also reload when the file changes, not only on SIGHUP
+
+doctor flags:
+  --config PATH     configuration file
+  --allowlist PATH  targets.json from the host, or - for stdin
 
 healthcheck flags:
   --config PATH  configuration file, to learn which address to ask
@@ -86,8 +91,8 @@ func NewLogger(w io.Writer, getenv func(string) string) *clog.Logger {
 // Main runs the meridian command line and returns the process exit code: 0 for success, 1 for a
 // failure while doing the work, 2 for a request that does not make sense. It writes to the writers it
 // is given so the whole CLI can be tested without a real process.
-func Main(args []string, stdout, stderr io.Writer) int {
-	root := newRoot(stdout, stderr)
+func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	root := newRoot(stdin, stdout, stderr)
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usage)
 		return 2
@@ -101,6 +106,8 @@ func Main(args []string, stdout, stderr io.Writer) int {
 	switch err := root.Execute(); {
 	case err == nil:
 		return 0
+	case errors.Is(err, errProblemsFound):
+		return 1
 	case errors.Is(err, errUsage):
 		fmt.Fprintf(stderr, "meridian: %v\n\n%s", err, usage)
 		return 2
@@ -126,7 +133,7 @@ func knownCommand(root *cobra.Command, arg string) bool {
 	return false
 }
 
-func newRoot(stdout, stderr io.Writer) *cobra.Command {
+func newRoot(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "meridian",
 		Short:         "the homelab dashboard",
@@ -137,6 +144,7 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 			return usageError{"no command given"}
 		},
 	}
+	root.SetIn(stdin)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 	root.SetHelpFunc(func(command *cobra.Command, _ []string) {
@@ -150,7 +158,7 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return usageError{err.Error()}
 	})
-	root.AddCommand(newRunCommand(), newHealthcheckCommand(), newVersionCommand())
+	root.AddCommand(newRunCommand(), newDoctorCommand(), newHealthcheckCommand(), newVersionCommand())
 	return root
 }
 
