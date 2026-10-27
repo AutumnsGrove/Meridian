@@ -13,71 +13,25 @@ import {
 	type Summary,
 	type Vital
 } from './types';
+import {
+	Refusal,
+	join,
+	object,
+	read,
+	readArray,
+	readBoolean,
+	readInteger,
+	readString,
+	readStrings,
+	refuse,
+	type Fields,
+	type ParseOutcome
+} from './fields';
 
 /** A parsed response, or the path and reason the first bad field was refused for. */
-export type ParseResult = { ok: true; value: Status } | { ok: false; error: string };
+export type ParseResult = ParseOutcome<Status>;
 
-type Fields = { [key: string]: unknown };
-
-// Refusal is control flow, not a failure: parseStatus turns it into a result. Anything else that
-// throws is a bug in this file and must surface as a test failure.
-class Refusal extends Error {}
-
-function refuse(path: string, want: string): never {
-	throw new Refusal(`${path}: want ${want}`);
-}
-
-function join(path: string, key: string | number): string {
-	return path === '' ? String(key) : `${path}.${String(key)}`;
-}
-
-function object(value: unknown, path: string): Fields {
-	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-		refuse(path, 'an object');
-	}
-	return value as Fields;
-}
-
-function read(fields: Fields, key: string, path: string): unknown {
-	const where = join(path, key);
-	if (!(key in fields)) refuse(where, 'present');
-	return fields[key];
-}
-
-function readString(fields: Fields, key: string, path: string): string {
-	const value = read(fields, key, path);
-	if (typeof value !== 'string') refuse(join(path, key), 'a string');
-	return value;
-}
-
-function readInteger(fields: Fields, key: string, path: string): number {
-	const value = read(fields, key, path);
-	if (typeof value !== 'number' || !Number.isInteger(value)) {
-		refuse(join(path, key), 'an integer');
-	}
-	return value;
-}
-
-function readBoolean(fields: Fields, key: string, path: string): boolean {
-	const value = read(fields, key, path);
-	if (typeof value !== 'boolean') refuse(join(path, key), 'a boolean');
-	return value;
-}
-
-function readArray(fields: Fields, key: string, path: string): unknown[] {
-	const value = read(fields, key, path);
-	if (!Array.isArray(value)) refuse(join(path, key), 'an array');
-	return value;
-}
-
-function readStrings(fields: Fields, key: string, path: string): string[] {
-	return readArray(fields, key, path).map((item, index) => {
-		const where = join(join(path, key), index);
-		if (typeof item !== 'string') refuse(where, 'a string');
-		return item;
-	});
-}
-
+// readStatus is the closed service-status vocabulary, which belongs to /api/status alone.
 function readStatus(fields: Fields, key: string, path: string): ServiceStatus {
 	const value = read(fields, key, path);
 	if (typeof value !== 'string' || !(SERVICE_STATUSES as readonly string[]).includes(value)) {
