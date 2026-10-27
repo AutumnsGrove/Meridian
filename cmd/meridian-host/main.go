@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/autumnsgrove/meridian/internal/hostexec"
 	"github.com/autumnsgrove/meridian/internal/hostprobe"
 )
 
@@ -15,8 +16,9 @@ const usage = `usage: meridian-host <command> [flags]
 
 commands:
   probe   write the host snapshot the dashboard reads
+  exec    run one pass over the control queue, as root, through sudo
 
-Run "meridian-host probe --help" for the probe's flags.
+Run "meridian-host <command> --help" for that command's flags.
 `
 
 func main() {
@@ -32,6 +34,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	switch args[0] {
 	case "probe":
 		return hostprobe.Main(args[1:], stderr)
+	case "exec":
+		return hostexec.Main(args[1:], stderr)
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)
 		return 0

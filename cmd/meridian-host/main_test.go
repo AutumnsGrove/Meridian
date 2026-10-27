@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -22,13 +23,28 @@ func TestRun_DispatchesProbeAndItsUsageErrors(t *testing.T) {
 func TestRun_RefusesAnUnknownCommand(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"exec"}, &stdout, &stderr)
+	code := run([]string{"nonsense"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Errorf("run(exec) = %d, want 2", code)
+		t.Errorf("run(nonsense) = %d, want 2", code)
 	}
-	if !strings.Contains(stderr.String(), `"exec"`) || !strings.Contains(stderr.String(), "probe") {
+	if !strings.Contains(stderr.String(), `"nonsense"`) || !strings.Contains(stderr.String(), "probe") {
 		t.Errorf("stderr = %q, want the unknown command and the usage", stderr.String())
+	}
+}
+
+func TestRun_DispatchesExecAndItsFlags(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	// A missing host.json is enough: the executor refuses to run without trusted configuration, which
+	// is the one path through this dispatch that needs no root and touches no real install.
+	code := run([]string{"exec", "--host", filepath.Join(t.TempDir(), "host.json")}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(exec) = %d, want 1\n%s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "meridian-host exec") {
+		t.Errorf("stderr = %q, want the executor's refusal", stderr.String())
 	}
 }
 
