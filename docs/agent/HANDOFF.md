@@ -3,92 +3,63 @@
 Read this first in every session. It is **rewritten, not appended**, at the end of each session; the
 history is in git. Keep it under about 40 lines: it is for a cold start with an empty context.
 
-## Template
+## Last session: S13 (2026-10-27)
 
-```
-## Last session: S<n> (<date>)
-Finished: T## ... (ticked in TASKS.md)
-Partial: none | T## and a checklist of remaining behaviours, with the files holding the finished part
+Finished: **T28** and **T29**, both ticked. The executor can now act.
 
-## Next
-Session S<n+1>, first task T##. One line on what it needs first.
-
-## State of the tree
-Clean and green under `scripts/check` | what is red and why
-
-## Gotchas
-Things the next session would otherwise rediscover: a surprising behaviour, a tool quirk, an
-assumption a test depends on, a decision made in the middle of a task.
-
-## For the owner
-Anything that needs your hands (a secret, a GitHub setting, a [human] gate) or your call
-(a pending item in OPEN-QUESTIONS.md).
-```
-
----
-
-## Last session: S12 (2026-10-26)
-
-Finished: **T27**, ticked. The executor's core exists; nothing calls it yet.
-
-- `internal/hostexec/targets.go`: `Target`/`Targets`/`HostConfig`, `LoadTargets`, `LoadHost`,
-  `ValidateTargets`, and the grammars (unit name via `wire.IsUnitName`, Docker's container name, an
-  absolute clean program path, `run_as` == the deploy user). One bad target refuses the whole file.
-  `wire.DecodeStrict` is now exported and used by both readers.
-- `decide.go`: `Decide(request, targets, history, now) Decision` with `StaleAfter` (120s) and
-  `CoalesceWindow` (60s); pure, table-driven, fuzzed against a dumb reference.
-- `exec.go`: `Executor{HostFile, TargetsFile, LockFile, Owner, Build, Run, Now, Random, Log}` and
-  `Execute(ctx)`: trusted config → non-blocking flock → prune results (7d) and audit lines (365d) →
-  drain the queue (64 per run, re-listed, junk deleted) → result + audit + delete per request.
-  `Command`, `Builder` and `Commander` are the seams T28 fills in.
-- Goldens in `testdata/hostexec/`. Fuzzers: `FuzzLoadTargets`, `FuzzDecide`, `FuzzRequestFile`.
-
-Partial: none. **No `exec` subcommand exists yet** and there is no real `Builder`/`Commander`.
+- `builders.go`: `Builders` keyed by `BuilderKey{Kind, Action}` plus `updateBuilders` keyed by the
+  target's `update.kind`. `Build(BuildInput{Target, Action, ID, Ref, DeployUser})` is the only place
+  that names a program; `ScheduleRestore(start, id)` wraps the *start* argv in `systemd-run`.
+  `Target.ResultFirst` is the new `result_first` field, and `LoadTargets` fills `Update.RunAs` with
+  the deploy user. New rule: `dns: true` requires `stop`.
+- `runner.go`: `Runner(logf)`, the real `Commander`. Minimal env (PATH/HOME/LANG), `Credential` with
+  groups for deploy-user commands, process-group `SIGKILL` on the deadline, `WaitDelay`, 64 KiB tail
+  captured and the rest to the journal.
+- `exec.go`: `Executor.Wait` seam, provisional result for `ResultFirst`, `is-active` post-check
+  (`not_active_after`), one deadline per command, the DNS guard (`restore_at`, `restore_failed` fail
+  safe), reboot-timer cancel when the final write fails, `result.Ref`, and audit lines that lead with
+  the result's note.
+- `command.go`: `meridian-host exec` (`--host/--targets/--lock`, exit 1 when the config cannot be
+  trusted), dispatched from `cmd/meridian-host`. Fuzzers: `FuzzBuildArgv`, `FuzzDecideCancel`.
+  Invariants gained "reboot but never shut down" with a fixture.
 
 ## Next
 
-Session **S13**, first task **T28**. It needs the builders table (`Builders[BuilderKey]`), the real
-`Commander` (`os/exec`, `Credential`, process-group kill, minimal env, output caps), the verify step
-(`not_active_after`), `ResultFirst`, and the `meridian-host exec` dispatch in
-`cmd/meridian-host`. Read `docs/agent/06-control.md` T28 and CONTROL.md "Who runs what".
+Session **S14**, first task **T30** (control UI). Read `docs/agent/06-control.md` T30, `DESIGN.md`
+"Control panel" and the `mockups/control-*` files. T30 wants a stub executor under `testdata/stub` as
+well as the reducers, so expect the session to be long; the partial-task rule applies freely.
 
 ## State of the tree
 
-Clean and green under the full `scripts/check`. S11's 66 commits and S12's 8 were pushed; CI has
-run everything since S3, `image` job included. Nothing is unpushed.
+Clean and green under the full `scripts/check` (fuzz, e2e and security included). Seven commits from
+S13 are **unpushed**; the owner batches pushes and the pre-push hook re-runs the full check.
 
 ## Gotchas
 
-- `Command` has **no** `ResultFirst` and no `Verify` yet, and the loop does not handle them: the T28
-  doc puts both in the command type, so T28 adds the fields and the steps in `handle`.
-- `Decide` refuses `cancel-autorestore` because it is not in any target's `actions`. The container's
-  `Enqueue` accepts it, so a cancel queued today gets `action_not_allowed`. **T29** gives it the ref
-  checks; that is expected, not a bug to "fix" early.
-- Coalescing counts only a prior result that is `OK` and not itself `coalesced` (decision #83), so a
-  retry after a failure runs.
-- A queue entry that is not a request is deleted and audited under a **fresh** UUID; the planted name
-  only reaches the journal (decision #83). A result that will not decode still counts for replay by
-  its file name.
-- `readRequest` opens with `O_NOFOLLOW|O_NONBLOCK`. Without `O_NONBLOCK` a planted FIFO blocks root
-  forever; the test asserts progress with a 10s deadline rather than sleeping.
-- Decoder errors are **dropped**, never logged: `encoding/json` errors quote field names from the
-  file, and file contents must not reach a log, a result or the page.
-- The audit prune keeps corrupt lines on purpose: deleting evidence is not pruning.
-- `FuzzRequestFile` is disk-bound (~10 execs/s: a result fsync, a directory fsync and an audit fsync
-  per iteration). Its seeds run in every `go test`; the full check's 5s pass covers a few dozen more.
-  Do not weaken the fsyncs to speed it up.
-- The container kind's JSON field is `container` (`"container": "worker"`); compose uses `dir` +
-  `service`. T31's example allowlists must match.
-- `scripts/fuzz` retries a run that saved **no** crasher, because the fuzz engine reports its own
-  deadline as a failure when a fixed-time run ends mid-input (`FuzzParseID` did this once on a push
-  and then ran 936k executions cleanly). A run that writes a crasher still fails immediately.
-- Still true: `testdata/api` is globbed as `/api/status` documents; `hostfile.Read` takes the
-  expected owner; the host binary and `hostexec` are stdlib-only (invariants test); `scripts/check`
-  is the only gate; a fuzz crasher is committed, never re-run away.
+- The verify step compares the **word** `systemctl is-active` prints, not its exit code: `inactive`
+  exits 3, so an exit-code check would call every good stop a failure.
+- `ScheduleRestore` takes the `Command` that `Build` produced for `start`, so a new kind needs no
+  restore row; systemd wants `--on-active=10min` (`10m0s` is not a span it accepts).
+- A docker update is one `docker compose up -d --pull always <service>`, not pull-then-up, so there is
+  one exit code and one deadline. T31's example allowlist must use `update: {kind: docker}`.
+- T31's allowlist also needs `"result_first": true` on the Meridian target, or a self-restart loses its
+  provisional result, and `dns: true` on any resolver it wants the guard for.
+- `Decide` can only cancel a restore whose stop is still in the newest 200 results; older than that and
+  the cancel is `bad_ref`.
+- The test harness fakes `Build` but not `ScheduleRestore`, so the restore argv there is the real one
+  wrapping `/bin/true`. Replies are matched by a substring of the argv (`h.replies`).
+- `internal/probe`'s scheduler test ("timed out waiting for the poller to park again") flaked once
+  under a fully loaded `check go` and passed on rerun and under `-race`. Not S13's doing; watch it.
+- A new invariants rule ships with a fixture under `internal/invariants/testdata/` or
+  `TestHardConstraints_CanFail` fails.
+- Still true: `testdata/api` is globbed as `/api/status` documents; `hostfile.Read` takes the expected
+  owner; the host binary and `hostexec` are stdlib-only; `scripts/check` is the only gate; a fuzz
+  crasher is committed, never re-run away.
 
 ## For the owner
 
-- Everything is pushed. Worth reading the `image` job's first real CI result when the run finishes.
-- Dependabot's npm job will offer TypeScript 7, which breaks the `svelte-check` peer range: it needs
-  a decision, not a merge.
+- Worth reading the new `docs/DECISIONS.md` #84-#85 before T31: they settle `result_first`, the single
+  `up --pull always` command, and why the audit line carries the note.
+- Dependabot's npm job will offer TypeScript 7, which breaks the `svelte-check` peer range: it needs a
+  decision, not a merge.
 - `[human]` gates T24, T32, T33, T37 are still open. T24 (Phase 1 on the potato) is code-unblocked.
