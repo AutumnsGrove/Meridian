@@ -3,12 +3,25 @@
 		label,
 		reason,
 		detail = '',
-		describedBy
-	}: { label: string; reason: string; detail?: string; describedBy: string } = $props();
+		busy = '',
+		destructive = false,
+		describedBy,
+		onclick
+	}: {
+		label: string;
+		reason: string;
+		detail?: string;
+		/** What the button says while its request is in flight. */
+		busy?: string;
+		/** A stop or a reboot: outlined in rose, never filled (docs/DESIGN.md "Control panel"). */
+		destructive?: boolean;
+		describedBy: string;
+		onclick?: () => void;
+	} = $props();
 
 	// A reason is the whole rule: a button that carries one is refused, and one that carries none is
-	// the control plane's to run (docs/DESIGN.md "Control panel").
-	const isDisabled = $derived(reason !== '' || detail !== '');
+	// the control plane's to run.
+	const isDisabled = $derived(reason !== '' || detail !== '' || busy !== '');
 	const detailID = $derived(`${describedBy}-detail`);
 	const described = $derived(
 		[reason !== '' ? describedBy : '', detail !== '' ? detailID : ''].filter(Boolean).join(' ') ||
@@ -16,8 +29,16 @@
 	);
 </script>
 
-<button type="button" class="button" disabled={isDisabled} aria-describedby={described}>
-	<span class="label">{label}</span>
+<button
+	type="button"
+	class="button"
+	class:destructive
+	class:busy={busy !== ''}
+	disabled={isDisabled}
+	aria-describedby={described}
+	onclick={() => onclick?.()}
+>
+	<span class="label">{busy !== '' ? busy : label}</span>
 	{#if detail}
 		<span class="detail" id={detailID}>{detail}</span>
 	{/if}
@@ -53,6 +74,17 @@
 	.button:disabled {
 		opacity: 0.4;
 		cursor: not-allowed;
+	}
+
+	/* A destructive button is outlined, never filled, so it cannot read as the safe choice. */
+	.destructive:not(:disabled) {
+		color: var(--status-down);
+		border-color: color-mix(in srgb, var(--status-down) 55%, var(--color-border-strong));
+	}
+
+	.busy {
+		color: var(--color-text-dim);
+		border-style: dashed;
 	}
 
 	.detail {

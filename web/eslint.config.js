@@ -13,7 +13,13 @@ export default tseslint.config(
 		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
 		languageOptions: {
 			// The plugin's config does not carry browser globals; name the ones the app uses.
-			globals: { window: 'readonly', document: 'readonly' },
+			globals: {
+				window: 'readonly',
+				document: 'readonly',
+				fetch: 'readonly',
+				setTimeout: 'readonly',
+				clearTimeout: 'readonly'
+			},
 			parserOptions: { parser: tseslint.parser }
 		},
 		rules: {

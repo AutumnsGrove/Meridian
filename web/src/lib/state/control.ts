@@ -1,4 +1,5 @@
 import type { AutoRestore, ControlResult, ControlStatus, PendingRequest } from '#lib/api/control';
+import type { ArmState } from './armed';
 import type { ControlAvailability, Service, Status } from '#lib/api/types';
 
 /** One button on a control row. */
@@ -144,4 +145,80 @@ export function clockLabel(at: string): string {
 		minute: '2-digit',
 		hour12: false
 	});
+}
+
+// What a button says while its action is in flight, and once it is done. The words are a table so a
+// new action cannot produce "stoping".
+const PROGRESS: Record<string, string> = {
+	start: 'starting',
+	stop: 'stopping',
+	restart: 'restarting',
+	update: 'updating',
+	reboot: 'rebooting'
+};
+
+const PAST: Record<string, string> = {
+	start: 'started',
+	stop: 'stopped',
+	restart: 'restarted',
+	update: 'updated',
+	reboot: 'rebooted'
+};
+
+/** The label a button wears while the executor is working on it. */
+export function progressLabel(action: string): string {
+	return `${PROGRESS[action] ?? action}…`;
+}
+
+/** The label a row reports after a successful action, e.g. "restarted in 4.8s". */
+export function doneLabel(result: ControlResult): string {
+	const verb = PAST[result.action] ?? result.action;
+	return `${verb} in ${(result.duration_ms / 1000).toFixed(1)}s`;
+}
+
+/**
+ * The sentence an armed button states, which is the whole reason the second tap exists
+ * (docs/DESIGN.md "Control panel"). It says what the consequence is, not what the button does.
+ */
+export function armedWarning(service: Service, action: string): string {
+	if (action === 'stop' && service.control?.dns === true) {
+		return 'Stopping this breaks DNS for the whole tailnet, including this page. It comes back in 10 minutes unless you cancel.';
+	}
+	if (action === 'stop') {
+		return `Stopping ${service.name} takes it offline until you start it again.`;
+	}
+	return `${service.name} does this right away.`;
+}
+
+/** The one-line report under a row after its action finished. */
+export function resultLine(result: ControlResult): string {
+	if (result.in_progress) return 'In progress.';
+	if (result.ok) return doneLabel(result);
+	return result.sentence !== '' ? result.sentence : 'The action failed.';
+}
+
+/**
+ * The acknowledgement the executor requires for an action (decision #16). The UI guard is a courtesy
+ * and this is the token it sends; the executor checks it again, which is the rule.
+ */
+export function ackFor(action: string, dns: boolean): string {
+	if (action === 'reboot') return 'reboot-confirmed';
+	if (action === 'stop') return dns ? 'dns-stop-confirmed' : 'stop-confirmed';
+	return '';
+}
+
+/** True while a reboot is queued or running, which is when the page watches /healthz (T30). */
+export function isRebooting(arm: ArmState, view: ControlStatus | null): boolean {
+	if (arm.phase !== 'sending' && arm.phase !== 'pending') return false;
+	if (arm.action !== 'reboot') return false;
+	// A reboot that is still only `sending` has no id yet, so there is nothing to look up: it is
+	// rebooting until the page hears otherwise.
+	if (arm.phase === 'sending') return true;
+	const result = view === null ? null : resultByID(view, arm.id);
+	return result === null || result.in_progress;
+}
+
+/** The service name for a target slug, for a banner that has only the allowlist's name. */
+export function nameForTarget(services: Service[], target: string): string {
+	return services.find((service) => service.control?.target === target)?.name ?? target;
 }

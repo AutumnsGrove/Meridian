@@ -45,7 +45,8 @@ describe('Banner', () => {
 	test('is announced as a status, with the sentence it was given', () => {
 		render(Banner, { text: "Can't reach Meridian" });
 
-		expect(screen.getByRole('status').textContent).toBe("Can't reach Meridian");
+		// Whitespace between the sentences of a status region is markup, not copy.
+		expect(screen.getByRole('status').textContent?.trim()).toBe("Can't reach Meridian");
 	});
 
 	test('carries the tone as a class, so a warning and an error do not look the same', () => {

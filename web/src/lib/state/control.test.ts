@@ -14,8 +14,14 @@ import {
 	controlRows,
 	countdownLabel,
 	historyRows,
+	isRebooting,
+	nameForTarget,
 	pendingFor,
+	ackFor,
+	armedWarning,
+	progressLabel,
 	remainingSeconds,
+	resultLine,
 	resultFor,
 	rowActions,
 	targetID
@@ -232,5 +238,85 @@ describe('historyRows', () => {
 		};
 
 		expect(historyRows(failed)[0].detail).toBe('The command failed.');
+	});
+});
+
+describe('the words a row uses', () => {
+	test('a button in flight says what is happening, in English', () => {
+		expect(progressLabel('stop')).toBe('stopping…');
+		expect(progressLabel('restart')).toBe('restarting…');
+		expect(progressLabel('unknown')).toBe('unknown…');
+	});
+
+	test('an armed stop on a DNS target says what breaks and when it comes back', () => {
+		const resolver = {
+			...serviceNamed(loadStatus('status.all-ok.golden.json'), 'Metrics'),
+			control: { target: 'one', actions: ['stop'], update_disabled_reason: '', dns: true }
+		};
+
+		expect(armedWarning(resolver, 'stop')).toContain('breaks DNS for the whole tailnet');
+		expect(armedWarning(resolver, 'stop')).toContain('comes back in 10 minutes');
+	});
+
+	test('an armed stop elsewhere promises only what is true', () => {
+		const service = {
+			...serviceNamed(loadStatus('status.all-ok.golden.json'), 'Metrics'),
+			control: { target: 'one', actions: ['stop'], update_disabled_reason: '', dns: false }
+		};
+
+		expect(armedWarning(service, 'stop')).toBe(
+			`Stopping ${service.name} takes it offline until you start it again.`
+		);
+	});
+
+	test('a finished row reports the duration, and a failure reports the sentence', () => {
+		expect(resultLine(control.results[1])).toBe('stopped in 2.0s');
+		expect(resultLine(control.results[0])).toBe('That target does not allow this action.');
+		expect(resultLine({ ...control.results[0], in_progress: true })).toBe('In progress.');
+	});
+
+	test('no sentence in this module uses an em dash or an exclamation mark', () => {
+		const service = serviceNamed(loadStatus('status.all-ok.golden.json'), 'Metrics');
+		const sentences = [
+			armedWarning(service, 'stop'),
+			progressLabel('stop'),
+			resultLine(control.results[0]),
+			countdownLabel(59),
+			historyRows(control)[0].text
+		];
+
+		for (const sentence of sentences) {
+			expect(sentence).not.toMatch(/[!\u2014]/);
+		}
+	});
+});
+
+describe('the acknowledgement a tap carries', () => {
+	test('matches the executor table: a reboot, a DNS stop and a plain stop differ', () => {
+		expect(ackFor('reboot', false)).toBe('reboot-confirmed');
+		expect(ackFor('stop', false)).toBe('stop-confirmed');
+		expect(ackFor('stop', true)).toBe('dns-stop-confirmed');
+		expect(ackFor('restart', true)).toBe('');
+	});
+});
+
+describe('isRebooting', () => {
+	test('is true while a reboot is in flight and its result has not landed', () => {
+		expect(isRebooting({ phase: 'pending', action: 'reboot', id: 'x' }, control)).toBe(true);
+		expect(isRebooting({ phase: 'sending', action: 'reboot' }, control)).toBe(true);
+	});
+
+	test('is false for anything else, so the reconnect loop never runs for a restart', () => {
+		expect(isRebooting({ phase: 'pending', action: 'restart', id: 'x' }, control)).toBe(false);
+		expect(isRebooting({ phase: 'armed', action: 'reboot', expiresAt: 1 }, control)).toBe(false);
+	});
+});
+
+describe('nameForTarget', () => {
+	test('finds the row a restore belongs to, and falls back to the slug', () => {
+		const service = serviceNamed(loadStatus('status.all-ok.golden.json'), 'Metrics');
+
+		expect(nameForTarget([service], service.control?.target ?? '')).toBe('Metrics');
+		expect(nameForTarget([service], 'nobody')).toBe('nobody');
 	});
 });

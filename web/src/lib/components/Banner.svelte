@@ -1,8 +1,17 @@
 <script lang="ts">
-	let { text, tone = 'error' }: { text: string; tone?: 'error' | 'warn' } = $props();
+	let {
+		text,
+		detail = '',
+		tone = 'error'
+	}: { text: string; detail?: string; tone?: 'error' | 'warn' } = $props();
 </script>
 
-<p class="banner banner-{tone}" role="status">{text}</p>
+<div class="banner banner-{tone}" role="status">
+	<p class="text">{text}</p>
+	{#if detail}
+		<p class="detail">{detail}</p>
+	{/if}
+</div>
 
 <style>
 	.banner {
@@ -12,6 +21,15 @@
 		border-radius: var(--radius);
 		color: var(--color-text);
 		font-size: var(--fs-meta);
+	}
+
+	.text {
+		font-weight: 500;
+	}
+
+	.detail {
+		margin-top: 2px;
+		color: var(--color-text-dim);
 	}
 
 	.banner-error {
