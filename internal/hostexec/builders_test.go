@@ -424,3 +424,88 @@ func FuzzBuildArgv(f *testing.F) {
 		}
 	})
 }
+
+func TestBuild_CancelsAnAutoRestoreByStoppingItsTimer(t *testing.T) {
+	in := hostexec.BuildInput{
+		Target: volatileTarget(), Action: wire.ActionCancelAutorestore, ID: builderID, Ref: builderRef, DeployUser: deployUser,
+	}
+
+	got, err := hostexec.Build(in)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	want := []string{"systemctl", "stop", "meridian-autorestore-" + builderRef + ".timer"}
+	if strings.Join(got.Argv, " ") != strings.Join(want, " ") {
+		t.Errorf("argv = %q, want %q", got.Argv, want)
+	}
+	if got.Timeout <= 0 || got.Timeout > time.Minute {
+		t.Errorf("timeout = %v, want a short one: cancelling a timer is one systemctl call", got.Timeout)
+	}
+	if got.ResultFirst || got.Verify != nil {
+		t.Errorf("command = %+v, want no provisional result and no post-check", got)
+	}
+}
+
+func TestBuild_RefusesACancelWithoutAUsableRef(t *testing.T) {
+	for _, ref := range []string{"", "nope", "../../etc/passwd", builderRef + "x"} {
+		t.Run(ref, func(t *testing.T) {
+			in := hostexec.BuildInput{
+				Target: volatileTarget(), Action: wire.ActionCancelAutorestore, ID: builderID, Ref: ref, DeployUser: deployUser,
+			}
+			if _, err := hostexec.Build(in); err == nil {
+				t.Fatalf("Build accepted ref %q, want a refusal", ref)
+			}
+		})
+	}
+}
+
+// TestScheduleRestore_WrapsTheTargetsOwnStartCommand is the DNS safety net: whatever starting the
+// target means, the timer runs exactly that, ten minutes from now.
+func TestScheduleRestore_WrapsTheTargetsOwnStartCommand(t *testing.T) {
+	tests := []struct {
+		name  string
+		input hostexec.BuildInput
+		want  []string
+	}{
+		{
+			name:  "a system unit",
+			input: hostexec.BuildInput{Target: volatileTarget(), Action: wire.ActionStart, ID: builderID, DeployUser: deployUser},
+			want: []string{
+				"systemd-run", "--on-active=10min", "--unit=meridian-autorestore-" + builderID,
+				"systemctl", "start", "resolver.service",
+			},
+		},
+		{
+			name:  "a deploy-user target keeps its user",
+			input: hostexec.BuildInput{Target: composeTarget(), Action: wire.ActionStart, ID: builderID, DeployUser: deployUser},
+			want: []string{
+				"systemd-run", "--on-active=10min", "--unit=meridian-autorestore-" + builderID, "-p", "User=" + deployUser,
+				"docker", "compose", "--project-directory", "/srv/stack", "start", "web",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			start, err := hostexec.Build(test.input)
+			if err != nil {
+				t.Fatalf("Build: %v", err)
+			}
+			scheduled := hostexec.ScheduleRestore(start, builderID)
+			if strings.Join(scheduled.Argv, " ") != strings.Join(test.want, " ") {
+				t.Errorf("argv = %q\nwant %q", scheduled.Argv, test.want)
+			}
+			if scheduled.Timeout <= 0 || scheduled.Timeout > time.Minute {
+				t.Errorf("timeout = %v, want a short one: scheduling a timer is one systemd-run call", scheduled.Timeout)
+			}
+		})
+	}
+}
+
+func TestScheduleRestore_UsesTheRestoreWindowTheDocsPromise(t *testing.T) {
+	if hostexec.AutoRestoreWindow != 10*time.Minute {
+		t.Errorf("AutoRestoreWindow = %v, want 10 minutes (decision #17)", hostexec.AutoRestoreWindow)
+	}
+	if !strings.Contains(strings.Join(hostexec.ScheduleRestore(hostexec.Command{Argv: []string{"systemctl", "start", "resolver.service"}}, builderID).Argv, " "), "--on-active=10min") {
+		t.Error("the timer does not say 10min, so systemd-run would refuse it")
+	}
+}

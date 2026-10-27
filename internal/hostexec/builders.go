@@ -20,6 +20,14 @@ const (
 	// UpdateDefaultTimeout bounds an update, which pulls and builds. A target may lower it with
 	// update_timeout_s.
 	UpdateDefaultTimeout = 600 * time.Second
+	// quickTimeout bounds the short systemd commands: scheduling a timer, cancelling one.
+	quickTimeout = 30 * time.Second
+
+	// AutoRestoreWindow is how long a DNS stop is allowed to stand before the target comes back on its
+	// own (decision #17). autoRestoreOnActive is the same window as systemd-run reads it: "10min", not
+	// Go's "10m0s".
+	AutoRestoreWindow   = 10 * time.Minute
+	autoRestoreOnActive = "10min"
 
 	// autorestoreUnitPrefix and rebootUnitPrefix name the transient units the executor schedules.
 	autorestoreUnitPrefix = "meridian-autorestore-"
@@ -103,11 +111,40 @@ var updateBuilders = map[string]Builder{
 
 // Build returns the command for one allowlisted action, or ErrNoCommand.
 func Build(in BuildInput) (Command, error) {
+	// Cancelling an auto-restore is the one verb whose command does not depend on the target: the
+	// timer a DNS stop scheduled is always a systemd unit.
+	if in.Action == wire.ActionCancelAutorestore {
+		return cancelAutorestore(in)
+	}
 	builder, known := Builders[BuilderKey{Kind: in.Target.Kind, Action: in.Action}]
 	if !known {
 		return Command{}, fmt.Errorf("%w: %q on a %q target", ErrNoCommand, in.Action, in.Target.Kind)
 	}
 	return builder(in)
+}
+
+// cancelAutorestore stops the transient timer that a DNS stop armed. Stopping a timer unit is how
+// systemd cancels it, so this is the whole implementation (decision #17).
+func cancelAutorestore(in BuildInput) (Command, error) {
+	if _, err := wire.ParseID(in.Ref); err != nil {
+		return Command{}, fmt.Errorf("%w: a cancel needs the id of the stop it cancels", ErrNoCommand)
+	}
+	return Command{
+		Argv:    []string{"systemctl", "stop", autorestoreUnitPrefix + in.Ref + ".timer"},
+		Timeout: quickTimeout,
+	}, nil
+}
+
+// ScheduleRestore wraps a target's own start command in a transient systemd timer, which is the
+// safety net a DNS stop buys: the one button that can cause a second outage cannot outlive ten
+// minutes unattended (decision #17). start must come from Build, so its argv is already allowlisted.
+func ScheduleRestore(start Command, id string) Command {
+	argv := []string{"systemd-run", "--on-active=" + autoRestoreOnActive, "--unit=" + autorestoreUnitPrefix + id}
+	if start.RunAs != "" {
+		argv = append(argv, "-p", "User="+start.RunAs)
+	}
+	argv = append(argv, start.Argv...)
+	return Command{Argv: argv, Timeout: quickTimeout}
 }
 
 // systemdVerb is the systemctl row: the unit comes from the allowlist and the post-check is
