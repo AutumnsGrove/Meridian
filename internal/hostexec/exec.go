@@ -219,6 +219,11 @@ func (exec *Executor) handle(ctx context.Context, dirs dirs, root *os.Root, name
 		result.Output = clipOutput(result.Output)
 		if err := exec.writeResult(dirs, result); err != nil {
 			exec.logf("could not write the result for %s: %v", id, err)
+			if result.Action == wire.ActionReboot {
+				// The reboot is scheduled and nobody would be able to read why: cancel it rather than let
+				// the box go down on an unexplained request (decision #64).
+				exec.cancelScheduled(ctx, rebootUnitPrefix+id)
+			}
 		}
 		exec.appendAudit(dirs, result)
 		if err := root.Remove(filepath.Join("queue", name)); err != nil {
@@ -238,6 +243,7 @@ func (exec *Executor) handle(ctx context.Context, dirs dirs, root *os.Root, name
 	}
 
 	result.Action, result.Target = request.Action, request.Target
+	result.Ref = request.Ref
 	decision := Decide(request, targets, history, now)
 	if !decision.Run {
 		result.OK, result.Code, result.Note = decision.OK, decision.Code, decision.Note
@@ -279,9 +285,63 @@ func (exec *Executor) handle(ctx context.Context, dirs dirs, root *os.Root, name
 	default:
 		result.OK = true
 	}
+	if result.OK && result.Action == wire.ActionStop && decision.Target.DNS {
+		exec.guardDNSStop(ctx, decision.Target, id, deployUser, &result)
+	}
 	result.FinishedAt = exec.now()
 	result.DurationMS = result.FinishedAt.Sub(result.StartedAt).Milliseconds()
 	return append(history, result)
+}
+
+// guardDNSStop arms the auto-restore a DNS stop needs and undoes the stop when it cannot: the one
+// button that can cause a second outage must fail safe (decision #65).
+func (exec *Executor) guardDNSStop(ctx context.Context, target Target, id, deployUser string, result *wire.Result) {
+	start, err := exec.Build(BuildInput{Target: target, Action: wire.ActionStart, ID: id, DeployUser: deployUser})
+	if err != nil {
+		exec.logf("cannot restore %s with a start command: %v", id, err)
+		result.OK, result.Code = false, wire.CodeRestoreFailed
+		result.Note = "the auto-restore could not be built, so the stop stands"
+		return
+	}
+
+	scheduleCtx, cancelSchedule := context.WithTimeout(ctx, quickTimeout)
+	exitCode, output, runErr := exec.Run(scheduleCtx, ScheduleRestore(start, id))
+	cancelSchedule()
+	if runErr == nil && exitCode == 0 {
+		restoreAt := exec.now().Add(AutoRestoreWindow)
+		result.RestoreAt = &restoreAt
+		result.Note = "auto-restore scheduled at " + restoreAt.UTC().Format(time.RFC3339)
+		return
+	}
+	exec.logf("could not schedule the auto-restore for %s: exit %d, %v, %s", id, exitCode, runErr, output)
+
+	// Fail safe: start the target again now. A second outage is worse than no safety net, so this runs
+	// on its own deadline rather than whatever is left of the stop's.
+	startCtx, cancelStart := context.WithTimeout(ctx, timeoutOf(start))
+	defer cancelStart()
+	startCode, startOutput, startErr := exec.Run(startCtx, start)
+	result.OK, result.Code = false, wire.CodeRestoreFailed
+	result.Note = "the auto-restore could not be scheduled, so the target was started again"
+	if startErr != nil || startCode != 0 {
+		exec.logf("could not start %s again after a failed auto-restore: exit %d, %v, %s",
+			id, startCode, startErr, startOutput)
+		result.Note = "the auto-restore could not be scheduled and starting the target again failed"
+	}
+}
+
+// cancelScheduled stops a transient timer the run could not report on. It detaches from ctx's
+// cancellation and takes its own short deadline, because the run may already be over by the time the
+// write has failed.
+func (exec *Executor) cancelScheduled(ctx context.Context, unit string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), quickTimeout)
+	defer cancel()
+	command := Command{Argv: []string{"systemctl", "stop", unit + ".timer"}, Timeout: quickTimeout}
+	exitCode, output, err := exec.Run(ctx, command)
+	if err != nil || exitCode != 0 {
+		exec.logf("could not cancel %s: exit %d, %v, %s", unit, exitCode, err, output)
+		return
+	}
+	exec.logf("cancelled %s because its result could not be written", unit)
 }
 
 // markInProgress writes the provisional result a self-restart or a reboot needs: the container is gone
@@ -382,7 +442,7 @@ func (exec *Executor) appendAudit(dirs dirs, result wire.Result) {
 		Code:       result.Code,
 		DurationMS: result.DurationMS,
 		By:         wire.AuditBy,
-		Output:     result.Output,
+		Output:     auditOutput(result),
 	}
 	data, err := json.Marshal(line)
 	if err != nil {
@@ -401,6 +461,19 @@ func (exec *Executor) appendAudit(dirs dirs, result wire.Result) {
 	}
 	if err := file.Sync(); err != nil {
 		exec.logf("could not sync the audit log: %v", err)
+	}
+}
+
+// auditOutput is what the page shows for a line: the note explains what the code cannot (when the
+// auto-restore fires, which request a duplicate merged with), and the command's tail follows it.
+func auditOutput(result wire.Result) string {
+	switch {
+	case result.Note == "":
+		return result.Output
+	case result.Output == "":
+		return result.Note
+	default:
+		return result.Note + "\n" + result.Output
 	}
 }
 

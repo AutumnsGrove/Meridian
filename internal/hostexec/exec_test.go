@@ -1067,6 +1067,181 @@ func TestExecute_BoundsTheCommandWithItsTimeout(t *testing.T) {
 	}
 }
 
+// dnsStopOf is a stop of the DNS target with the confirmation the stronger stop needs.
+func dnsStopOf(t *testing.T, id string) wire.Request {
+	t.Helper()
+	return wire.Request{
+		ID: id, Action: wire.ActionStop, Target: "resolver", Ack: "dns-stop-confirmed",
+		RequestedAt: decideNow.Add(-time.Second),
+	}
+}
+
+func cancelOfAt(t *testing.T, id, ref string) wire.Request {
+	t.Helper()
+	return wire.Request{
+		ID: id, Action: wire.ActionCancelAutorestore, Target: "resolver", Ref: ref,
+		RequestedAt: decideNow.Add(-time.Second),
+	}
+}
+
+// TestExecute_SchedulesOneRestoreAfterADNSStop is the safety net in decision #17: the stop stands, but
+// for ten minutes only, and the result says when the target comes back.
+func TestExecute_SchedulesOneRestoreAfterADNSStop(t *testing.T) {
+	h := newHarness(t)
+	id := newIDAt(t, decideNow)
+	h.queueRequest(t, dnsStopOf(t, id))
+
+	if err := h.execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if len(h.built) != 2 || h.built[0].action != wire.ActionStop || h.built[1].action != wire.ActionStart {
+		t.Fatalf("built %+v, want the stop and then the start it will be restored with", h.built)
+	}
+	if len(h.ran) != 2 {
+		t.Fatalf("ran %+v, want the stop and the scheduled restore", h.ran)
+	}
+	restore := strings.Join(h.ran[1].Argv, " ")
+	for _, want := range []string{"systemd-run", "--on-active=10min", "--unit=meridian-autorestore-" + id} {
+		if !strings.Contains(restore, want) {
+			t.Errorf("restore argv = %q, want it to contain %q", restore, want)
+		}
+	}
+
+	result := h.result(t, id)
+	if !result.OK || result.Code != "" {
+		t.Errorf("result = %+v, want the stop to stand", result)
+	}
+	if result.RestoreAt == nil || !result.RestoreAt.Equal(decideNow.Add(10*time.Minute)) {
+		t.Fatalf("restore_at = %v, want ten minutes after the stop", result.RestoreAt)
+	}
+	if !strings.Contains(result.Note, "auto-restore scheduled at") {
+		t.Errorf("note = %q, want it to say when the target comes back", result.Note)
+	}
+	lines := h.audit(t)
+	if len(lines) != 1 || !strings.Contains(lines[0].Output, "auto-restore scheduled at") {
+		t.Errorf("audit = %+v, want the restore time in the one line", lines)
+	}
+}
+
+// TestExecute_UndoesADNSStopWhoseRestoreCannotBeScheduled is decision #65: a stop whose safety net did
+// not arm must not stand.
+func TestExecute_UndoesADNSStopWhoseRestoreCannotBeScheduled(t *testing.T) {
+	h := newHarness(t)
+	h.replies = []reply{{match: "systemd-run", exitCode: 1, output: "Failed to start transient timer unit"}}
+	id := newIDAt(t, decideNow)
+	h.queueRequest(t, dnsStopOf(t, id))
+
+	if err := h.execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if len(h.built) != 2 || h.built[1].action != wire.ActionStart {
+		t.Fatalf("built %+v, want the stop and the start that undoes it", h.built)
+	}
+	if len(h.ran) != 3 {
+		t.Fatalf("ran %d commands, want the stop, the failed schedule and the start again", len(h.ran))
+	}
+
+	result := h.result(t, id)
+	if result.OK || result.Code != wire.CodeRestoreFailed {
+		t.Errorf("result = %+v, want restore_failed", result)
+	}
+	if result.RestoreAt != nil {
+		t.Errorf("restore_at = %v, want none: nothing was scheduled", result.RestoreAt)
+	}
+	if !strings.Contains(h.logs.String(), "auto-restore") {
+		t.Errorf("the journal does not explain the failed schedule: %s", h.logs.String())
+	}
+}
+
+// TestExecute_CancelsTheRestoreACancelNames keeps the cancel honest end to end: the result carries the
+// ref, so the page can tell that this stop no longer has a pending restore.
+func TestExecute_CancelsTheRestoreACancelNames(t *testing.T) {
+	h := newHarness(t)
+	restoreAt := decideNow.Add(9 * time.Minute)
+	h.writeResult(t, wire.Result{
+		ID: otherID, Action: wire.ActionStop, Target: "resolver", OK: true,
+		StartedAt: decideNow.Add(-time.Minute), FinishedAt: decideNow.Add(-time.Minute), RestoreAt: &restoreAt,
+	})
+	id := newIDAt(t, decideNow)
+	h.queueRequest(t, cancelOfAt(t, id, otherID))
+
+	if err := h.execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	result := h.result(t, id)
+	if !result.OK || result.Code != "" {
+		t.Errorf("result = %+v, want the cancel to succeed", result)
+	}
+	if result.Ref != otherID {
+		t.Errorf("ref = %q, want the stop it cancels", result.Ref)
+	}
+	if result.Action != wire.ActionCancelAutorestore {
+		t.Errorf("action = %q, want the cancel", result.Action)
+	}
+}
+
+func TestExecute_RefusesACancelOfNothing(t *testing.T) {
+	h := newHarness(t)
+	id := newIDAt(t, decideNow)
+	h.queueRequest(t, cancelOfAt(t, id, absentID))
+
+	if err := h.execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	result := h.result(t, id)
+	if result.OK || result.Code != wire.CodeBadRef {
+		t.Errorf("result = %+v, want bad_ref", result)
+	}
+	if len(h.ran) != 0 {
+		t.Errorf("ran %+v, want nothing for a cancel of nothing", h.ran)
+	}
+}
+
+// TestExecute_CancelsTheRebootWhenTheResultCannotBeWritten is the other half of decision #64: an
+// unexplained reboot is not allowed to happen.
+func TestExecute_CancelsTheRebootWhenTheResultCannotBeWritten(t *testing.T) {
+	h := newHarness(t)
+	h.resultFirst = true
+	id := newIDAt(t, decideNow)
+	h.queueRequest(t, wire.Request{
+		ID: id, Action: wire.ActionReboot, Target: "host", Ack: "reboot-confirmed",
+		RequestedAt: decideNow.Add(-time.Second),
+	})
+	h.duringRun = func(hostexec.Command) {
+		// Make the final write fail, the way a full or read-only filesystem would. The provisional
+		// result is already on disk by now, because it is written before the command runs.
+		if err := os.Chmod(h.resultsDir, 0o500); err != nil {
+			t.Fatalf("chmod: %v", err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(h.resultsDir, 0o700) })
+	}
+
+	if err := h.execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	var cancelCommand string
+	for _, command := range h.ran {
+		if strings.Contains(strings.Join(command.Argv, " "), "systemctl stop meridian-reboot-") {
+			cancelCommand = strings.Join(command.Argv, " ")
+		}
+	}
+	if cancelCommand == "" {
+		t.Fatalf("ran %+v, want the reboot timer cancelled", h.ran)
+	}
+	if !strings.Contains(cancelCommand, id) {
+		t.Errorf("cancelled %q, want the reboot this request scheduled", cancelCommand)
+	}
+	// The provisional result is what a reader finds, because the final write never happened.
+	if result := h.result(t, id); !result.InProgress {
+		t.Errorf("result = %+v, want the provisional result left behind", result)
+	}
+}
+
 // FuzzRequestFile pushes arbitrary bytes through the whole pipeline with a fake commander: a result
 // is written for every request file, and a command runs only for what decodes, validates and is
 // allowlisted.
