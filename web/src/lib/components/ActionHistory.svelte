@@ -63,10 +63,11 @@
 		color: var(--color-text-dim);
 	}
 
+	/* Dim, not faint: 12px text has to clear the contrast floor at this size. */
 	.count,
 	.empty {
 		font-size: var(--fs-meta);
-		color: var(--color-text-faint);
+		color: var(--color-text-dim);
 	}
 
 	ul {

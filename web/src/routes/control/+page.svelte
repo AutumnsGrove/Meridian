@@ -25,7 +25,6 @@
 	const live = createLiveStatus();
 	const sync = createLiveControl();
 	onMount(live.start);
-	onMount(sync.start);
 
 	// One armed-button machine for the whole page: two actions at once is what this page exists to
 	// prevent, so the second tap only ever belongs to the row that armed it.
@@ -56,6 +55,14 @@
 		const element = id === null ? null : document.getElementById(id);
 		highlighted = element === null ? null : id;
 		if (element !== null) element.scrollIntoView({ block: 'start' });
+	});
+
+	// Only poll the control view when there is one. A Phase 1 box answers 503 to that route, and the
+	// browser logs a failed request as a console error, so asking a question nobody can answer would
+	// put an error on a page that is working exactly as intended.
+	$effect(() => {
+		if (status === null || !status.control.available) return;
+		return sync.start();
 	});
 
 	// The arm expires on its own: the second tap is only meaningful inside the five seconds the copy
