@@ -87,6 +87,19 @@ func errorCode(t *testing.T, response *httptest.ResponseRecorder) wire.Code {
 	return body.Code
 }
 
+// errorSentence reads the sentence a refusal carries. It is the same table the status view renders,
+// so the page never has to map a code to words of its own (decision #86).
+func errorSentence(t *testing.T, response *httptest.ResponseRecorder) string {
+	t.Helper()
+	var body struct {
+		Sentence string `json:"sentence"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body %q is not the error shape: %v", response.Body.String(), err)
+	}
+	return body.Sentence
+}
+
 func TestControl_AcceptsATapAndQueuesIt(t *testing.T) {
 	hub := newTestGateway(t)
 	dirs := hub.mountControl(t)
@@ -196,6 +209,10 @@ func TestControl_AnswersRefusalsWithTheirCode(t *testing.T) {
 			response := hub.postControl(t, test.body, nil)
 			if response.Code != test.want {
 				t.Fatalf("status = %d (%s), want %d", response.Code, response.Body.String(), test.want)
+			}
+			if sentence := errorSentence(t, response); sentence != test.code.Sentence() {
+				t.Errorf("sentence = %q, want the table's own %q, so the page keeps no second copy",
+					sentence, test.code.Sentence())
 			}
 			if code := errorCode(t, response); code != test.code {
 				t.Errorf("code = %q, want %q", code, test.code)

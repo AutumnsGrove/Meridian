@@ -68,6 +68,14 @@ export function readStrings(fields: Fields, key: string, path: string): string[]
 	});
 }
 
+/** An optional boolean: absent means "the field is not there", anything else must still be a boolean. */
+export function readOptionalBoolean(fields: Fields, key: string, path: string): boolean | null {
+	const value = fields[key];
+	if (value === undefined || value === null) return null;
+	if (typeof value !== 'boolean') refuse(join(path, key), 'a boolean');
+	return value;
+}
+
 /** An optional string: absent and undefined both mean "the field is not there". */
 export function readOptionalString(fields: Fields, key: string, path: string): string | null {
 	const value = fields[key];

@@ -108,10 +108,13 @@ func refusalStatus(err error) (int, wire.Code) {
 	return http.StatusInternalServerError, wire.CodeInternal
 }
 
-// writeCode answers with the control error shape the page parses: one closed-set code, which the
-// browser turns into a sentence. It never carries the underlying error.
+// writeCode answers with the control error shape the page parses: the closed-set code and the
+// sentence the wire table gives it, so a refusal reads the same as the result it would have become
+// and the page keeps no second copy of the wording (decision #86). It never carries the underlying
+// error.
 func writeCode(w http.ResponseWriter, status int, code wire.Code) {
 	writeJSON(w, status, struct {
-		Code wire.Code `json:"code"`
-	}{Code: code})
+		Code     wire.Code `json:"code"`
+		Sentence string    `json:"sentence"`
+	}{Code: code, Sentence: code.Sentence()})
 }
