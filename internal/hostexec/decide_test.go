@@ -93,9 +93,9 @@ func TestDecide_RefusesByCode(t *testing.T) {
 			want:    wire.CodeActionNotAllowed,
 		},
 		{
-			name: "cancel is not an allowlisted action",
+			name: "cancel on a target that serves no DNS",
 			request: func() wire.Request {
-				request := decideRequest(wire.ActionCancelAutorestore, "resolver")
+				request := decideRequest(wire.ActionCancelAutorestore, "app")
 				request.Ref = refID
 				return request
 			}(),
@@ -366,4 +366,185 @@ func referenceRuns(request wire.Request, targets hostexec.Targets, history []wir
 		}
 	}
 	return true
+}
+
+// cancelOf is a well-formed cancel-autorestore for the resolver, naming ref.
+func cancelOf(ref string) wire.Request {
+	request := decideRequest(wire.ActionCancelAutorestore, "resolver")
+	request.Ref = ref
+	return request
+}
+
+// armedStop is a DNS stop result that scheduled its auto-restore.
+func armedStop(id, target string, restoreAt time.Time) wire.Result {
+	return wire.Result{
+		ID: id, Action: wire.ActionStop, Target: target, OK: true,
+		StartedAt: decideNow.Add(-time.Minute), FinishedAt: decideNow.Add(-time.Minute),
+		RestoreAt: &restoreAt,
+	}
+}
+
+// TestDecide_RefusesACancelThatWouldNotCancelAnything is the second half of the DNS guard: a cancel
+// only means something while the restore it names is still armed (decision #17).
+func TestDecide_RefusesACancelThatWouldNotCancelAnything(t *testing.T) {
+	armed := decideNow.Add(9 * time.Minute)
+	fired := decideNow.Add(-time.Minute)
+
+	tests := []struct {
+		name    string
+		ref     string
+		history []wire.Result
+		want    wire.Code
+	}{
+		{
+			name: "a ref no result answers to",
+			ref:  refID,
+			want: wire.CodeBadRef,
+		},
+		{
+			name: "a ref that is not a UUID",
+			ref:  "not-a-uuid",
+			want: wire.CodeBadRef,
+		},
+		{
+			name:    "a stop for another target",
+			ref:     refID,
+			history: []wire.Result{armedStop(refID, "app", armed)},
+			want:    wire.CodeBadRef,
+		},
+		{
+			name:    "a result that armed nothing",
+			ref:     refID,
+			history: []wire.Result{{ID: refID, Action: wire.ActionRestart, Target: "resolver", OK: true, StartedAt: decideNow.Add(-time.Minute)}},
+			want:    wire.CodeBadRef,
+		},
+		{
+			name:    "a restore that already fired",
+			ref:     refID,
+			history: []wire.Result{armedStop(refID, "resolver", fired)},
+			want:    wire.CodeBadRef,
+		},
+		{
+			name: "the restore was already cancelled",
+			ref:  refID,
+			history: []wire.Result{
+				armedStop(refID, "resolver", armed),
+				{
+					ID: otherID, Action: wire.ActionCancelAutorestore, Target: "resolver", Ref: refID, OK: true,
+					StartedAt: decideNow.Add(-time.Minute),
+				},
+			},
+			want: wire.CodeBadRef,
+		},
+		{
+			name: "a stop that failed armed nothing",
+			ref:  refID,
+			history: []wire.Result{func() wire.Result {
+				stop := armedStop(refID, "resolver", armed)
+				stop.OK = false
+				stop.Code = wire.CodeExecFailed
+				return stop
+			}()},
+			want: wire.CodeBadRef,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			decision := hostexec.Decide(cancelOf(test.ref), decideTargets(), test.history, decideNow)
+			if decision.Run {
+				t.Fatalf("Decide = %+v, want a refusal", decision)
+			}
+			if decision.Code != test.want {
+				t.Errorf("Code = %q, want %q", decision.Code, test.want)
+			}
+		})
+	}
+}
+
+func TestDecide_AcceptsACancelForAnArmedRestore(t *testing.T) {
+	armed := decideNow.Add(9 * time.Minute)
+
+	tests := []struct {
+		name    string
+		history []wire.Result
+	}{
+		{
+			name:    "an armed stop",
+			history: []wire.Result{armedStop(refID, "resolver", armed)},
+		},
+		{
+			name: "a cancel that failed did not cancel anything",
+			history: []wire.Result{
+				armedStop(refID, "resolver", armed),
+				{
+					ID: otherID, Action: wire.ActionCancelAutorestore, Target: "resolver", Ref: refID, OK: false,
+					Code: wire.CodeExecFailed, StartedAt: decideNow.Add(-time.Minute),
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			decision := hostexec.Decide(cancelOf(refID), decideTargets(), test.history, decideNow)
+			if !decision.Run || !decision.OK {
+				t.Fatalf("Decide = %+v, want it to run", decision)
+			}
+			if decision.Action != wire.ActionCancelAutorestore {
+				t.Errorf("Action = %q, want the cancel", decision.Action)
+			}
+		})
+	}
+}
+
+// FuzzDecideCancel holds the ref checks to a deliberately dumb reference: a cancel is accepted only
+// when the ref names an armed restore, for this target, that nothing has cancelled yet.
+func FuzzDecideCancel(f *testing.F) {
+	f.Add(refID, refID, true, 540, true)
+	f.Add(refID, runID, true, 540, false)
+	f.Add(refID, refID, false, 540, false)
+	f.Add(refID, refID, true, -60, false)
+	f.Add(refID, refID, true, 540, false)
+	f.Add("not-a-uuid", "not-a-uuid", true, 540, false)
+	f.Add("", "", false, 0, false)
+
+	f.Fuzz(func(t *testing.T, ref, stopID string, stopOK bool, restoreIn int, cancelled bool) {
+		restoreAt := decideNow.Add(time.Duration(restoreIn) * time.Second)
+		history := []wire.Result{{
+			ID: stopID, Action: wire.ActionStop, Target: "resolver", OK: stopOK,
+			StartedAt: decideNow.Add(-time.Minute), FinishedAt: decideNow.Add(-time.Minute),
+			RestoreAt: &restoreAt,
+		}}
+		if cancelled {
+			history = append(history, wire.Result{
+				ID: otherID, Action: wire.ActionCancelAutorestore, Target: "resolver", Ref: stopID, OK: true,
+				StartedAt: decideNow.Add(-time.Minute),
+			})
+		}
+
+		decision := hostexec.Decide(cancelOf(ref), decideTargets(), history, decideNow)
+		want := referenceCancelRuns(ref, stopID, stopOK, cancelled, restoreIn)
+		if decision.Run != want {
+			t.Fatalf("Decide(ref=%q, stop=%q, ok=%v, restoreIn=%d, cancelled=%v) = %+v, want run=%v",
+				ref, stopID, stopOK, restoreIn, cancelled, decision, want)
+		}
+		if !decision.Run && decision.Code != wire.CodeBadRef && decision.Code != wire.CodeBadRequest &&
+			decision.Code != wire.CodeReplay && decision.Code != wire.CodeBadID {
+			t.Fatalf("refusal code %q is not one the ref rules produce", decision.Code)
+		}
+	})
+}
+
+// referenceCancelRuns is the dumb version: no tables, no history scan, just the conditions written
+// out in the order the docs list them.
+func referenceCancelRuns(ref, stopID string, stopOK, cancelled bool, restoreIn int) bool {
+	if _, err := wire.ParseID(ref); err != nil {
+		return false
+	}
+	if stopID == runID {
+		return false // the request's own id is already in the results: a replay
+	}
+	if ref != stopID || !stopOK || cancelled {
+		return false
+	}
+	return restoreIn > 0
 }

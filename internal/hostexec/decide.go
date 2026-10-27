@@ -76,6 +76,12 @@ func Decide(request wire.Request, targets Targets, history []wire.Result, now ti
 		return Decision{Code: wire.CodeBadAck, Target: target}
 	}
 
+	// A cancel is only meaningful while the restore it names is still armed, and the ref is the whole
+	// of what it names: refuse it before coalescing, which would otherwise answer it as a duplicate.
+	if request.Action == wire.ActionCancelAutorestore && !cancellationIsArmed(request, history, now) {
+		return Decision{Code: wire.CodeBadRef, Target: target, Action: request.Action}
+	}
+
 	if prior, coalesced := coalescedWith(request, history, now); coalesced {
 		return Decision{
 			OK: true, Code: wire.CodeCoalesced, Note: "coalesced with " + prior,
@@ -84,6 +90,32 @@ func Decide(request wire.Request, targets Targets, history []wire.Result, now ti
 	}
 
 	return Decision{Run: true, OK: true, Target: target, Action: request.Action}
+}
+
+// cancellationIsArmed reports whether a cancel-autorestore still has something to cancel: the ref
+// must name a stop for this target that scheduled a restore, that restore must not have fired yet, and
+// no earlier cancel may have succeeded. A failed cancel counts for nothing, so it can be retried.
+func cancellationIsArmed(request wire.Request, history []wire.Result, now time.Time) bool {
+	var stop *wire.Result
+	for index := range history {
+		if history[index].ID == request.Ref {
+			stop = &history[index]
+			break
+		}
+	}
+	if stop == nil || !stop.OK || stop.RestoreAt == nil || stop.Target != request.Target {
+		return false
+	}
+	if !now.Before(*stop.RestoreAt) {
+		return false
+	}
+	for index := range history {
+		cancelled := &history[index]
+		if cancelled.OK && cancelled.Action == wire.ActionCancelAutorestore && cancelled.Ref == request.Ref {
+			return false
+		}
+	}
+	return true
 }
 
 // coalescedWith finds a result for the same action on the same target that started inside the window.

@@ -337,8 +337,13 @@ func isCleanAbs(path string) bool {
 		filepath.IsAbs(path) && filepath.Clean(path) == path
 }
 
-// Offers reports whether the target's allowlist entry includes the action.
+// Offers reports whether the target's allowlist entry includes the action. Cancelling an auto-restore
+// is not a listed action: a DNS target's stop schedules one, so any DNS target may cancel one, and the
+// ref check in Decide is what makes the cancel mean anything (decision #17).
 func (target Target) Offers(action wire.Action) bool {
+	if action == wire.ActionCancelAutorestore {
+		return target.DNS && target.Offers(wire.ActionStop)
+	}
 	for _, allowed := range target.Actions {
 		if allowed == string(action) {
 			return true
