@@ -8,12 +8,46 @@
 # duration.
 #
 # Crashers are saved by `go test` under testdata/fuzz/<Target>/ and must be committed.
+#
+# A run that failed without saving a crasher is retried once. That is not re-running until green: the
+# fuzz engine reports "context deadline exceeded" when a fixed-time run ends while a worker is still
+# finishing an input, and saves nothing, because nothing was found. A run that *did* write a crasher
+# fails here immediately, and the crasher is committed rather than minimised away by a retry.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 duration=${1:-20s}
 found=0
+
+# crasher_count prints how many crasher files a target has, so a retry can tell a real finding from
+# the engine's own deadline race.
+crasher_count() {
+	local pkg=$1 target=$2 dir
+	dir=$(go list -f '{{.Dir}}' "$pkg")
+	if [ -d "$dir/testdata/fuzz/$target" ]; then
+		find "$dir/testdata/fuzz/$target" -type f | wc -l | tr -d '[:space:]'
+	else
+		printf '0'
+	fi
+}
+
+fuzz_target() {
+	local pkg=$1 target=$2 before after
+	before=$(crasher_count "$pkg" "$target")
+	if go test -run='^$' -fuzz="^${target}\$" -fuzztime="$duration" "$pkg"; then
+		return 0
+	fi
+
+	after=$(crasher_count "$pkg" "$target")
+	if [ "$after" != "$before" ]; then
+		printf 'fuzz: %s %s saved a crasher; commit it, do not re-run it away\n' "$pkg" "$target" >&2
+		return 1
+	fi
+
+	printf '== fuzz %s %s retrying once: the run failed and saved no crasher\n' "$pkg" "$target"
+	go test -run='^$' -fuzz="^${target}\$" -fuzztime="$duration" "$pkg"
+}
 
 while IFS= read -r pkg; do
 	targets=$(go test -list '^Fuzz' "$pkg" 2>/dev/null | grep '^Fuzz' || true)
@@ -23,7 +57,7 @@ while IFS= read -r pkg; do
 		fi
 		found=1
 		printf '== fuzz %s %s for %s\n' "$pkg" "$target" "$duration"
-		go test -run='^$' -fuzz="^${target}\$" -fuzztime="$duration" "$pkg"
+		fuzz_target "$pkg" "$target"
 	done <<<"$targets"
 done < <(go list ./...)
 
