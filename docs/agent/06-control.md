@@ -92,7 +92,8 @@ Package `internal/control`. It **never constructs a command**; it can only produ
   not mounted or not writable, true otherwise. `/api/status.control` is built from it, so Phase 1
   deployments (no mounts) correctly say "control plane not installed".
 - Routes (added to the gateway table): `POST /api/control` body `{action,target,ack,ref?}` returns
-  `202 {"id": …}`, or `400/409/429/503` with `{"code": …}`; `GET /api/control/status` returns the view.
+  `202 {"id": …}`, or `400/409/429/503` with `{"code": …, "sentence": …}` (decision #86);
+  `GET /api/control/status` returns the view.
   The POST goes through `browserGuard` (T14). It is the **only** mutating route.
 - No result waiting inside the request: POST returns at once. The browser polls status.
 
