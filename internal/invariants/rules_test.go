@@ -629,3 +629,47 @@ func checkExitOnlyInCmd(root string) error {
 		return violation
 	})
 }
+
+// checkNoShutdownVerb is decision #18: a remote shutdown is unrecoverable without physical access, so
+// the executor may schedule a reboot and nothing else. The rule reads string literals and identifier
+// names, so a builder cannot sneak the verb in as a variable either.
+func checkNoShutdownVerb(root string) error {
+	forbidden := []string{"shutdown", "poweroff", "power-off", "halt"}
+
+	return walkGoFiles(root, func(f goFile) error {
+		if !underAny(f.rel, []string{"internal/hostexec"}) {
+			return nil
+		}
+		var violation error
+		ast.Inspect(f.file, func(node ast.Node) bool {
+			if violation != nil {
+				return false
+			}
+			var text string
+			switch node := node.(type) {
+			case *ast.Ident:
+				text = node.Name
+			case *ast.BasicLit:
+				if node.Kind != token.STRING {
+					return true
+				}
+				value, err := strconv.Unquote(node.Value)
+				if err != nil {
+					return true
+				}
+				text = value
+			default:
+				return true
+			}
+			for _, term := range forbidden {
+				if strings.Contains(strings.ToLower(text), term) {
+					violation = fmt.Errorf("%s: %q would let a request shut the box down; only a reboot may be scheduled (decision #18)",
+						f.pos(node), text)
+					return false
+				}
+			}
+			return true
+		})
+		return violation
+	})
+}

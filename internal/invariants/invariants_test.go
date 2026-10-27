@@ -78,6 +78,11 @@ var hardConstraints = []struct {
 		check:    checkOneMutatingRoute,
 	},
 	{
+		name:     "the executor can schedule a reboot but never a shutdown",
+		fixtures: []string{"no-shutdown-verb"},
+		check:    checkNoShutdownVerb,
+	},
+	{
 		name:     "os.Exit and log.Fatal live only in cmd/",
 		fixtures: []string{"exit-outside-cmd"},
 		check:    checkExitOnlyInCmd,
