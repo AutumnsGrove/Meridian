@@ -80,6 +80,7 @@ func TestLoadTargets_RefusesWhatTheExecutorCannotSafelyRun(t *testing.T) {
 		{"no actions", wrap("app", `"kind":"systemd","unit":"app.service","actions":[]`)},
 		{"unknown action", wrap("app", `"kind":"systemd","unit":"app.service","actions":["destroy"]`)},
 		{"cancel-autorestore in actions", wrap("app", `"kind":"systemd","unit":"app.service","actions":["cancel-autorestore"]`)},
+		{"dns without a stop to guard", wrap("app", `"kind":"systemd","unit":"app.service","actions":["start","restart"],"dns":true`)},
 		{"reboot on a non-host target", wrap("app", `"kind":"systemd","unit":"app.service","actions":["reboot"]`)},
 		{"duplicate action", wrap("app", `"kind":"systemd","unit":"app.service","actions":["restart","restart"]`)},
 		{"systemd without a unit", wrap("app", `"kind":"systemd","actions":["start"]`)},

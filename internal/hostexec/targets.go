@@ -166,6 +166,11 @@ func ValidateTargets(targets Targets, deployUser string) error {
 // validateActions checks the action list against the closed vocabulary, allowing reboot only for the
 // box itself.
 func validateActions(where string, target Target, fail func(string, ...any)) {
+	// A DNS stop is what arms the auto-restore, so a DNS target that cannot be stopped could never
+	// have a restore to cancel either (decision #17).
+	if target.DNS && !target.Offers(wire.ActionStop) {
+		fail("%s: dns is set but stop is not offered, so no auto-restore could ever be armed", where)
+	}
 	if len(target.Actions) == 0 {
 		fail("%s: no actions", where)
 		return

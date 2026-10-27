@@ -159,7 +159,8 @@ shows up as a refused action, which is the correct direction for the failure to 
 
 `kind` is one of `systemd`, `compose`, `container`, `host`. `update.kind` is one of `unit`
 (`systemctl start <unit>`, blocking because those units are `Type=oneshot`), `command` (an argv
-array — never a shell string), `docker` (`pull` + recreate from a compose definition), or `self`
+array — never a shell string), `docker` (one `docker compose up -d --pull always <service>`, which
+pulls and recreates together), or `self`
 (Meridian's own digest-pinned update, run by `meridian-host update`; carries the image repository,
 the compose directory and the health URL).
 

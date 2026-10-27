@@ -136,8 +136,10 @@ no element contains NUL; `run_as` is empty or equals `deploy_user`; `criticality
    decode. **Never include file contents in an error, result or log.** Then in order:
    `wire.ValidateRequest`; id equals the filename stem; replay (a result for this id already exists:
    `replay`); stale (`requested_at` more than 120s old: `stale`); `unknown_target`;
-   `action_not_allowed` (action not in the target's list); ack equals `wire.RequiredAck(action,
-   target.dns)`; **coalescing**: a prior request for the same `(target, action)` started within 60s
+   `action_not_allowed` (action not in the target's list; `cancel-autorestore` is implied by `dns: true`
+   plus `stop`, not listed); ack equals `wire.RequiredAck(action, target.dns)`; for a cancel, the ref
+   names a successful stop for this target whose restore has neither fired nor been cancelled
+   (`bad_ref`, T29); **coalescing**: a prior request for the same `(target, action)` started within 60s
    gives `ok: true, code: coalesced, note: "coalesced with <id>"` and runs nothing (decision #37).
 6. Build the command (T28), run it, build the `Result`.
 7. **Every exit path writes a result** (`defer` + `recover`; a panic is `internal`), appends one audit
@@ -176,11 +178,18 @@ type Command struct {
     Dir         string
     Timeout     time.Duration
     ResultFirst bool          // write a provisional result before running (self-restart, reboot)
-    Verify      *Command      // optional post-check (e.g. is-active)
+    Verify      *Verify       // optional post-check, e.g. is-active must say "active"
 }
-type Builder func(t Target, id string) (Command, error)
+type Verify struct { Argv []string; Want string }   // a word, not an exit code
+type BuildInput struct { Target Target; Action wire.Action; ID, Ref, DeployUser string }
+type Builder func(in BuildInput) (Command, error)
 var Builders = map[BuilderKey]Builder{ {Kind: "systemd", Action: "restart"}: …, … }
+var updateBuilders = map[string]Builder{ UpdateUnit: …, UpdateCommand: …, UpdateDocker: … }
 ```
+
+The update row looks in `updateBuilders` for its second dimension: the target's own `update.kind`.
+`Target.ResultFirst` (`"result_first": true`) is how the allowlist says "this target is the dashboard,
+its actions can kill the container".
 
 | Kind / action | Argv (all pieces come from the allowlist or are the validated id) | Runs as |
 |---|---|---|
@@ -189,7 +198,7 @@ var Builders = map[BuilderKey]Builder{ {Kind: "systemd", Action: "restart"}: …
 | container start/stop/restart | `docker <verb> <name>` | deploy user |
 | update `unit` | `systemctl start <unit>` (blocking: those units are `Type=oneshot`) | root |
 | update `command` | the `cmd` argv exactly as written | deploy user |
-| update `docker` | `docker compose --project-directory <dir> pull <service>` then `up -d <service>` | deploy user |
+| update `docker` | `docker compose --project-directory <dir> up -d --pull always <service>` (one command: pull and recreate together) | deploy user |
 | host reboot | `systemd-run --on-active=10 --unit=meridian-reboot-<id> systemctl reboot`, `ResultFirst` | root |
 | meridian restart/stop/update | as systemd / unit, `ResultFirst` | root |
 
@@ -237,7 +246,9 @@ table).
   `ResultFirst`. If the final result write fails after scheduling, cancel the reboot timer.
 - **Self-restart / stop / update of Meridian**: `ResultFirst`, so the result exists before the
   container dies. The UI reconnects (T30) and finds the result by id.
-- Audit lines for all of these, including `restore_at` in the note text.
+- Audit lines for all of these, including `restore_at` in the note text: the note leads the audit
+  line's `output`, because a result file is pruned after seven days and the audit line is what a year
+  of actions is read from.
 
 **Tests first**: stop AdGuard-like target schedules exactly one restore with the right delay and
 argv; scheduling failure starts the target and reports `restore_failed`; cancel for a valid ref, an
