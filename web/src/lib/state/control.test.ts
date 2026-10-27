@@ -1,7 +1,25 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { loadStatus, serviceNamed } from '../../../test/golden';
+import { parseControlStatus } from '#lib/api/control';
 import type { ControlAvailability } from '#lib/api/types';
-import { controlNote, controlReason, controlRows, rowActions, targetID } from './control';
+import {
+	CONTROL_FOLLOW_UP_MS,
+	CONTROL_IDLE_MS,
+	busyReason,
+	controlDelay,
+	controlNote,
+	controlReason,
+	controlRows,
+	countdownLabel,
+	historyRows,
+	pendingFor,
+	remainingSeconds,
+	resultFor,
+	rowActions,
+	targetID
+} from './control';
 
 const status = loadStatus('status.all-ok.golden.json');
 const unavailable: ControlAvailability = status.control;
@@ -122,5 +140,97 @@ describe('targetID', () => {
 		{ hash: '#' + 'a'.repeat(33), want: null }
 	])('reads $hash as $want', ({ hash, want }) => {
 		expect(targetID(hash)).toBe(want);
+	});
+});
+
+// The control view the container sends (testdata/control/status.golden.json), parsed once through the
+// same validator the page uses.
+const control = (() => {
+	const raw: unknown = JSON.parse(
+		readFileSync(resolve(process.cwd(), '../testdata/control/status.golden.json'), 'utf8')
+	);
+	const result = parseControlStatus(raw);
+	if (!result.ok) throw new Error(result.error);
+	return result.value;
+})();
+
+describe('controlDelay', () => {
+	test('follows a queued action once a second and idles at ten', () => {
+		expect(controlDelay(1)).toBe(CONTROL_FOLLOW_UP_MS);
+		expect(controlDelay(0)).toBe(CONTROL_IDLE_MS);
+	});
+});
+
+describe('pendingFor and resultFor', () => {
+	test('find a target in the view the container sent', () => {
+		expect(pendingFor(control, 'one')?.action).toBe('stop');
+		expect(pendingFor(control, 'two')).toBeNull();
+		expect(resultFor(control, 'one')?.action).toBe('update');
+	});
+});
+
+describe('busyReason', () => {
+	test('names the other target that is in the way', () => {
+		expect(busyReason(control, 'two')).toBe('Waiting for one to finish stop.');
+	});
+
+	test('says nothing when the only queued request is this row\u2019s own', () => {
+		expect(busyReason(control, 'one')).toBe('');
+	});
+
+	test('names an action that is still running even when the queue is empty', () => {
+		const running = {
+			...control,
+			pending: [],
+			results: [{ ...control.results[0], in_progress: true }]
+		};
+
+		expect(busyReason(running, 'two')).toBe('Waiting for an action that is still running.');
+	});
+});
+
+describe('the auto-restore countdown', () => {
+	const restore = control.autorestore[0];
+
+	test('counts down from the browser clock, and never below zero', () => {
+		const now = Date.parse(restore.restore_at) - 90_000;
+
+		expect(remainingSeconds(restore, now)).toBe(90);
+		expect(remainingSeconds(restore, Date.parse(restore.restore_at) + 60_000)).toBe(0);
+	});
+
+	test('renders as a clock a person can read', () => {
+		expect(countdownLabel(599)).toBe('9:59');
+		expect(countdownLabel(0)).toBe('0:00');
+		expect(countdownLabel(-5)).toBe('0:00');
+	});
+});
+
+describe('historyRows', () => {
+	test('names the action, its target, its duration and the executor sentence', () => {
+		const rows = historyRows(control);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0].text).toBe('stop one');
+		expect(rows[0].duration).toBe('2.0s');
+		expect(rows[0].ok).toBe(true);
+		expect(rows[0].time).toMatch(/^\d{2}:\d{2}$/);
+	});
+
+	test('a failed row explains itself with the sentence the container supplied', () => {
+		const failed = {
+			...control,
+			audit: [
+				{
+					...control.audit[0],
+					ok: false,
+					code: 'exec_failed',
+					sentence: 'The command failed.',
+					output: 'docker: not found'
+				}
+			]
+		};
+
+		expect(historyRows(failed)[0].detail).toBe('The command failed.');
 	});
 });
