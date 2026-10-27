@@ -76,6 +76,9 @@ type Target struct {
 	UpdateTimeoutS int `json:"update_timeout_s,omitempty"`
 	// NoUpdateReason renders a disabled update button in the page.
 	NoUpdateReason string `json:"no_update_reason,omitempty"`
+	// ResultFirst marks a target whose actions can kill the dashboard itself: Meridian's own restart,
+	// stop or update. It writes a provisional result before running (decision #64).
+	ResultFirst bool `json:"result_first,omitempty"`
 }
 
 // Update is one way to update a target. Every field comes from the allowlist, never from a request.
@@ -110,6 +113,15 @@ func LoadTargets(data []byte, deployUser string) (Targets, error) {
 	}
 	if err := ValidateTargets(document.Targets, deployUser); err != nil {
 		return nil, err
+	}
+	// Every command update runs as the deploy user. Filling it in here means no builder can leave it
+	// empty and default an app's own updater to root (decision #31).
+	for id := range document.Targets {
+		target := document.Targets[id]
+		if target.Update != nil && target.Update.Kind == UpdateCommand && target.Update.RunAs == "" {
+			target.Update.RunAs = deployUser
+			document.Targets[id] = target
+		}
 	}
 	return document.Targets, nil
 }

@@ -53,6 +53,7 @@ type buildCall struct {
 	target hostexec.Target
 	action wire.Action
 	id     string
+	ref    string
 }
 
 const testTargets = `{"targets":{
@@ -93,11 +94,11 @@ func newHarness(t *testing.T) *harness {
 		TargetsFile: h.targetsFile,
 		LockFile:    h.lockFile,
 		Owner:       currentUID(),
-		Build: func(target hostexec.Target, action wire.Action, id string) (hostexec.Command, error) {
+		Build: func(in hostexec.BuildInput) (hostexec.Command, error) {
 			if h.panicky {
 				panic("the builder exploded")
 			}
-			h.built = append(h.built, buildCall{target: target, action: action, id: id})
+			h.built = append(h.built, buildCall{target: in.Target, action: in.Action, id: in.ID, ref: in.Ref})
 			if h.buildErr != nil {
 				return hostexec.Command{}, h.buildErr
 			}

@@ -44,19 +44,6 @@ const (
 	maxAuditSize = 16 << 20
 )
 
-// Command is one allowlisted action, ready to run. Every part of it comes from the allowlist or the
-// validated id; the request itself contributes nothing (decision #31).
-type Command struct {
-	Argv    []string
-	RunAs   string // "" runs as root
-	Dir     string
-	Timeout time.Duration
-}
-
-// Builder turns an allowlisted target and action into the command to run. T28 supplies the table of
-// builders; the executor never constructs an argv itself.
-type Builder func(target Target, action wire.Action, id string) (Command, error)
-
 // Commander runs one command and reports its exit code and output. T28 supplies the real one, which is
 // the only place the executor starts a process.
 type Commander func(ctx context.Context, command Command) (exitCode int, output string, err error)
@@ -68,8 +55,9 @@ type Executor struct {
 	LockFile    string
 	// Owner is the uid the trusted files must belong to: root in production, the test user in tests.
 	Owner uint32
-	// Build and Run are the command seams; neither has a default, because a missing builder must be a
-	// compile error at the call site rather than a silent no-op.
+	// Build and Run are the command seams: Builders.Build and NewRunner in production, a recorded
+	// fake in tests. Neither has a default, because a missing seam must be a compile error at the
+	// call site rather than a silent no-op.
 	Build Builder
 	Run   Commander
 	// Now is the clock. Nil means the wall clock.
@@ -137,7 +125,7 @@ func (exec *Executor) Execute(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return nil
 			}
-			history = exec.handle(ctx, dirs, root, name, targets, history)
+			history = exec.handle(ctx, dirs, root, name, targets, host.DeployUser, history)
 			processed++
 		}
 	}
@@ -210,7 +198,7 @@ func (exec *Executor) loadTrusted() (HostConfig, Targets, error) {
 // handle processes one request file and returns the history with its result appended. Every path
 // writes a result, appends an audit line and only then removes the request (decision #62).
 func (exec *Executor) handle(ctx context.Context, dirs dirs, root *os.Root, name string, targets Targets,
-	history []wire.Result) []wire.Result {
+	deployUser string, history []wire.Result) []wire.Result {
 	id := strings.TrimSuffix(name, ".json")
 	now := exec.now()
 	result := wire.Result{ID: id, StartedAt: now, FinishedAt: now}
@@ -251,7 +239,9 @@ func (exec *Executor) handle(ctx context.Context, dirs dirs, root *os.Root, name
 
 	started := exec.now()
 	result.StartedAt = started
-	command, err := exec.Build(decision.Target, decision.Action, id)
+	command, err := exec.Build(BuildInput{
+		Target: decision.Target, Action: decision.Action, ID: id, Ref: request.Ref, DeployUser: deployUser,
+	})
 	if err != nil {
 		// The builder refused something the allowlist allowed: that is an implementation gap, not
 		// the request's fault, and it must still be visible.
