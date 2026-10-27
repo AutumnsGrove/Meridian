@@ -47,6 +47,24 @@ type harness struct {
 	runErr   error
 	buildErr error
 	panicky  bool
+
+	// replies script the Commander, one per call, matched by a word in the argv so a verify step can
+	// answer differently from the action it checks.
+	replies      []reply
+	duringRun    func(command hostexec.Command)
+	deadlines    []time.Duration
+	commandTTL   time.Duration
+	waits        []time.Duration
+	verifyStep   *hostexec.Verify
+	resultFirst  bool
+	commandRunAs string
+}
+
+type reply struct {
+	match    string
+	exitCode int
+	output   string
+	err      error
 }
 
 type buildCall struct {
@@ -102,17 +120,58 @@ func newHarness(t *testing.T) *harness {
 			if h.buildErr != nil {
 				return hostexec.Command{}, h.buildErr
 			}
-			return hostexec.Command{Argv: []string{"/bin/true"}, Timeout: time.Minute}, nil
+			return hostexec.Command{
+				Argv:        []string{"/bin/true"},
+				RunAs:       h.commandRunAs,
+				Timeout:     h.ttl(),
+				Verify:      h.verifyStep,
+				ResultFirst: h.resultFirst,
+			}, nil
 		},
-		Run: func(_ context.Context, command hostexec.Command) (int, string, error) {
+		Run: func(ctx context.Context, command hostexec.Command) (int, string, error) {
 			h.ran = append(h.ran, command)
+			if deadline, ok := ctx.Deadline(); ok {
+				h.deadlines = append(h.deadlines, time.Until(deadline))
+			}
+			if h.duringRun != nil {
+				h.duringRun(command)
+			}
+			if answer, ok := h.replyTo(command); ok {
+				return answer.exitCode, answer.output, answer.err
+			}
 			return h.exitCode, h.output, h.runErr
+		},
+		Wait: func(ctx context.Context, delay time.Duration) error {
+			h.waits = append(h.waits, delay)
+			return ctx.Err()
 		},
 		Now:    func() time.Time { return h.now },
 		Random: rand.Reader,
 		Log:    log.New(h.logs, "", 0),
 	}
 	return h
+}
+
+func (h *harness) ttl() time.Duration {
+	if h.commandTTL > 0 {
+		return h.commandTTL
+	}
+	return time.Minute
+}
+
+// replyTo answers a command whose argv mentions match, so a test can script the action and its
+// post-check separately.
+func (h *harness) replyTo(command hostexec.Command) (reply, bool) {
+	joined := strings.Join(command.Argv, " ")
+	for index, answer := range h.replies {
+		if answer.match == "" || strings.Contains(joined, answer.match) {
+			if index == 0 {
+				h.replies = h.replies[1:]
+			}
+			return answer, true
+		}
+	}
+	return reply{}, false
 }
 
 func (h *harness) writeTrusted(t *testing.T, path, content string) {
@@ -887,6 +946,124 @@ func appendRaw(t *testing.T, path string, lines ...string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+// TestExecute_RunsThePostCheck is the difference between "systemctl said it would" and "the unit is
+// running": a start or restart that never answers is not_active_after (docs/CONTROL.md).
+func TestExecute_RunsThePostCheck(t *testing.T) {
+	t.Run("a unit that never answers", func(t *testing.T) {
+		h := newHarness(t)
+		h.verifyStep = &hostexec.Verify{Argv: []string{"systemctl", "is-active", "app.service"}, Want: "active"}
+		h.replies = []reply{{match: "is-active", exitCode: 3, output: "inactive"}}
+		id := newIDAt(t, decideNow)
+		h.queueRequest(t, restartOf(t, id, time.Second))
+
+		if err := h.execute(); err != nil {
+			t.Fatalf("Execute: %v", err)
+		}
+		result := h.result(t, id)
+		if result.OK || result.Code != wire.CodeNotActiveAfter {
+			t.Errorf("result = %+v, want not_active_after", result)
+		}
+		if len(h.ran) != 21 {
+			t.Errorf("ran %d commands, want the action and 20 post-checks in its 10s window", len(h.ran))
+		}
+		if len(h.waits) != 19 {
+			t.Errorf("waited %d times between checks, want one fewer than the checks", len(h.waits))
+		}
+		if check := h.ran[1]; check.RunAs != h.commandRunAs || strings.Join(check.Argv, " ") != "systemctl is-active app.service" {
+			t.Errorf("post-check = %+v, want the verify argv as the same user", check)
+		}
+	})
+
+	t.Run("a unit that answers on the second try", func(t *testing.T) {
+		h := newHarness(t)
+		h.verifyStep = &hostexec.Verify{Argv: []string{"systemctl", "is-active", "app.service"}, Want: "active"}
+		h.replies = []reply{
+			{match: "is-active", exitCode: 3, output: "activating"},
+			{match: "is-active", output: "active\n"},
+		}
+		id := newIDAt(t, decideNow)
+		h.queueRequest(t, restartOf(t, id, time.Second))
+
+		if err := h.execute(); err != nil {
+			t.Fatalf("Execute: %v", err)
+		}
+		if result := h.result(t, id); !result.OK || result.Code != "" {
+			t.Errorf("result = %+v, want a success once the unit says active", result)
+		}
+		if len(h.ran) != 3 {
+			t.Errorf("ran %d commands, want the action and two post-checks", len(h.ran))
+		}
+	})
+
+	t.Run("no post-check needs no waiting", func(t *testing.T) {
+		h := newHarness(t)
+		id := newIDAt(t, decideNow)
+		h.queueRequest(t, restartOf(t, id, time.Second))
+
+		if err := h.execute(); err != nil {
+			t.Fatalf("Execute: %v", err)
+		}
+		if len(h.ran) != 1 || len(h.waits) != 0 {
+			t.Errorf("ran %d and waited %d, want one command and no waits", len(h.ran), len(h.waits))
+		}
+	})
+}
+
+// TestExecute_WritesTheResultBeforeItActs is decision #64: for a reboot or a self-restart the
+// container is gone before it could report, so the story has to exist first.
+func TestExecute_WritesTheResultBeforeItActs(t *testing.T) {
+	h := newHarness(t)
+	h.resultFirst = true
+	id := newIDAt(t, decideNow)
+	h.queueRequest(t, restartOf(t, id, time.Second))
+
+	var provisional *wire.Result
+	h.duringRun = func(hostexec.Command) {
+		result := h.result(t, id)
+		provisional = &result
+	}
+
+	if err := h.execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if provisional == nil {
+		t.Fatal("nothing was written before the command ran")
+	}
+	if !provisional.InProgress || !provisional.OK || provisional.Note != "in progress" {
+		t.Errorf("provisional result = %+v, want an in progress marker", provisional)
+	}
+	if provisional.ID != id || provisional.Action != wire.ActionRestart || provisional.Target != "app" {
+		t.Errorf("provisional result = %+v, want it to name the action", provisional)
+	}
+
+	final := h.result(t, id)
+	if final.InProgress || !final.OK {
+		t.Errorf("final result = %+v, want the finished story", final)
+	}
+	if files := h.resultFiles(t); len(files) != 1 {
+		t.Errorf("results = %v, want the provisional result overwritten, not added to", files)
+	}
+}
+
+// TestExecute_BoundsTheCommandWithItsTimeout keeps a hung command from holding the oneshot: the
+// builder's timeout is the context deadline the commander sees.
+func TestExecute_BoundsTheCommandWithItsTimeout(t *testing.T) {
+	h := newHarness(t)
+	h.commandTTL = 90 * time.Second
+	id := newIDAt(t, decideNow)
+	h.queueRequest(t, restartOf(t, id, time.Second))
+
+	if err := h.execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(h.deadlines) != 1 {
+		t.Fatalf("the command ran without a deadline")
+	}
+	if h.deadlines[0] <= 0 || h.deadlines[0] > 90*time.Second {
+		t.Errorf("deadline in %v, want one within the builder's 90s", h.deadlines[0])
 	}
 }
 

@@ -34,6 +34,10 @@ const (
 	// historyDepth is how many results Decide sees: enough for a replay check and a coalescing
 	// window several actions deep.
 	historyDepth = 200
+	// verifyInterval and verifyAttempts give a unit 10s to answer is-active after the action, which
+	// is the window docs/CONTROL.md promises.
+	verifyInterval = 500 * time.Millisecond
+	verifyAttempts = 20
 	// resultRetention is how long a result file stays; the page only lists the last few.
 	resultRetention = 7 * 24 * time.Hour
 	// auditRetention is how long an audit line stays (decision #32).
@@ -62,6 +66,9 @@ type Executor struct {
 	Run   Commander
 	// Now is the clock. Nil means the wall clock.
 	Now func() time.Time
+	// Wait pauses between post-check attempts. Nil waits for real; tests pass a no-op so a check that
+	// never answers costs no wall time.
+	Wait func(ctx context.Context, delay time.Duration) error
 	// Random supplies ids for the audit lines of files that are not requests. Nil means crypto/rand.
 	Random io.Reader
 	// Log receives the journal lines. Nil is silent.
@@ -249,23 +256,86 @@ func (exec *Executor) handle(ctx context.Context, dirs dirs, root *os.Root, name
 		result.Code = wire.CodeInternal
 		return append(history, result)
 	}
+	if command.ResultFirst {
+		exec.markInProgress(dirs, result)
+	}
 
-	exitCode, output, runErr := exec.Run(ctx, command)
-	result.FinishedAt = exec.now()
-	result.DurationMS = result.FinishedAt.Sub(result.StartedAt).Milliseconds()
-	result.ExitCode, result.Output = exitCode, output
+	// One deadline for the action and its post-check: a command that never returns must not hold the
+	// oneshot, and a timeout is `timeout`, not a hang.
+	actionCtx, cancel := context.WithTimeout(ctx, timeoutOf(command))
+	defer cancel()
+
+	result.ExitCode, result.Output, err = exec.Run(actionCtx, command)
 	switch {
-	case errors.Is(runErr, context.DeadlineExceeded):
+	case errors.Is(err, context.DeadlineExceeded):
 		result.Code = wire.CodeTimeout
-	case runErr != nil:
-		exec.logf("%s on %s could not run: %v", request.Action, request.Target, runErr)
+	case err != nil:
+		exec.logf("%s on %s could not run: %v", request.Action, request.Target, err)
 		result.Code = wire.CodeExecFailed
-	case exitCode != 0:
+	case result.ExitCode != 0:
 		result.Code = wire.CodeExecFailed
+	case !exec.verify(actionCtx, command):
+		result.Code = wire.CodeNotActiveAfter
 	default:
 		result.OK = true
 	}
+	result.FinishedAt = exec.now()
+	result.DurationMS = result.FinishedAt.Sub(result.StartedAt).Milliseconds()
 	return append(history, result)
+}
+
+// markInProgress writes the provisional result a self-restart or a reboot needs: the container is gone
+// before it could report, so the story has to exist first (decision #64). A failed write is logged and
+// the action still runs, because refusing to act is the worse failure.
+func (exec *Executor) markInProgress(dirs dirs, result wire.Result) {
+	result.InProgress = true
+	result.OK = true
+	result.Note = "in progress"
+	if err := exec.writeResult(dirs, result); err != nil {
+		exec.logf("could not write the provisional result for %s: %v", result.ID, err)
+	}
+}
+
+// verify runs the post-check inside the action's deadline. A check that cannot run keeps trying: a
+// unit that is still activating is not a failure yet.
+func (exec *Executor) verify(ctx context.Context, command Command) bool {
+	check := command.Verify
+	if check == nil {
+		return true
+	}
+	for attempt := 0; attempt < verifyAttempts; attempt++ {
+		if attempt > 0 {
+			if err := exec.wait(ctx, verifyInterval); err != nil {
+				return false
+			}
+		}
+		_, output, err := exec.Run(ctx, Command{
+			Argv: check.Argv, RunAs: command.RunAs, Dir: command.Dir, Timeout: command.Timeout,
+		})
+		if err == nil && reportsWord(output, check.Want) {
+			return true
+		}
+	}
+	return false
+}
+
+// reportsWord looks for the word a post-check must print. systemctl is-active exits non-zero for a
+// stopped unit, so the answer is the word, not the exit code.
+func reportsWord(output, want string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		if strings.TrimSpace(line) == want {
+			return true
+		}
+	}
+	return false
+}
+
+// timeoutOf is the builder's bound on the command, or the default when a builder forgot one.
+func timeoutOf(command Command) time.Duration {
+	if command.Timeout > 0 {
+		return command.Timeout
+	}
+	return DefaultTimeout
 }
 
 // readRequest opens one queue entry and decodes it, returning the request or the code to refuse it
@@ -545,6 +615,21 @@ func (exec *Executor) now() time.Time {
 		return time.Now().UTC()
 	}
 	return exec.Now()
+}
+
+// wait is the pause between post-check attempts.
+func (exec *Executor) wait(ctx context.Context, delay time.Duration) error {
+	if exec.Wait != nil {
+		return exec.Wait(ctx, delay)
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (exec *Executor) randomness() io.Reader {
