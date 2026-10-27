@@ -54,9 +54,8 @@ Session **S13**, first task **T28**. It needs the builders table (`Builders[Buil
 
 ## State of the tree
 
-Clean and green under the full `scripts/check`. S11's 66 commits were pushed at the start of this
-session (CI ran everything since S3 for the first time, `image` job included); 6 commits are
-unpushed now.
+Clean and green under the full `scripts/check`. S11's 66 commits and S12's 8 were pushed; CI has
+run everything since S3, `image` job included. Nothing is unpushed.
 
 ## Gotchas
 
@@ -80,14 +79,16 @@ unpushed now.
   Do not weaken the fsyncs to speed it up.
 - The container kind's JSON field is `container` (`"container": "worker"`); compose uses `dir` +
   `service`. T31's example allowlists must match.
+- `scripts/fuzz` retries a run that saved **no** crasher, because the fuzz engine reports its own
+  deadline as a failure when a fixed-time run ends mid-input (`FuzzParseID` did this once on a push
+  and then ran 936k executions cleanly). A run that writes a crasher still fails immediately.
 - Still true: `testdata/api` is globbed as `/api/status` documents; `hostfile.Read` takes the
   expected owner; the host binary and `hostexec` are stdlib-only (invariants test); `scripts/check`
   is the only gate; a fuzz crasher is committed, never re-run away.
 
 ## For the owner
 
-- 6 commits unpushed. The first CI run after S11's push covers everything since S3; worth reading the
-  `image` job's first real result.
+- Everything is pushed. Worth reading the `image` job's first real CI result when the run finishes.
 - Dependabot's npm job will offer TypeScript 7, which breaks the `svelte-check` peer range: it needs
   a decision, not a merge.
 - `[human]` gates T24, T32, T33, T37 are still open. T24 (Phase 1 on the potato) is code-unblocked.
