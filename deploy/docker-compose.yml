@@ -2,8 +2,10 @@
 #
 # Host networking is not cosmetic: on a bridge network "localhost" inside the container is the
 # container, and every probe would report the box as down (decision #26). Nothing is published and no
-# socket is mounted. The container sees three read-only paths and nothing else, which is the shape the
-# invariants test in internal/invariants enforces (T23), so a change that widens it fails the build.
+# socket is mounted. The container sees four read-only paths, plus one writable directory that is not
+# even its own: the control inbox, where a request goes so the host can pick it up (decision #63). The
+# invariants test in internal/invariants enforces that shape (T23, T31), so a change that widens it
+# fails the build.
 #
 # The image reference comes from .env so Phase 4 can pin it by digest. The uid and gid are the deploy
 # user's, so the status directory is writable without being world-writable.
@@ -35,3 +37,7 @@ services:
       - ./config.yaml:/config/config.yaml:ro
       - ./icons:/config/icons:ro
       - ./status:/status:ro
+      # The one writable mount: queued requests only. Results and the audit log are in outbox/, which
+      # the executor writes and this container reads read-only.
+      - ./control/inbox:/control/inbox
+      - ./control/outbox:/control/outbox:ro

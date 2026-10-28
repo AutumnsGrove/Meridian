@@ -1,0 +1,28 @@
+# One pass over the control queue, as root, through exactly one sudoers rule (decisions #52, #66).
+#
+# The unit itself runs as the deploy user and hands the work to the host binary; nothing here names a
+# command, a target or an action. The allowlist and the executor live in /etc/meridian, which is never
+# mounted into the container.
+#
+# @DEPLOY_USER@ is filled by the installer (T36).
+#
+# StartLimitIntervalSec=0 is not optional: the path unit can fire again the instant the queue is
+# non-empty, and the default start rate limit (five starts in ten seconds) would silently disable this
+# service and leave every request unclaimed. The .path unit then looks alive while nothing runs.
+[Unit]
+Description=Meridian control executor (one pass over the queue)
+Documentation=https://github.com/autumnsgrove/meridian/blob/main/docs/CONTROL.md
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+User=@DEPLOY_USER@
+ExecStart=/usr/bin/sudo -n /etc/meridian/meridian-host exec
+
+# The executor's own per-command ceiling is 600s, and a run handles up to 64 requests. This bound is
+# the one systemd enforces, so it must be the larger of the two or systemd would kill a healthy run
+# mid-action and leave the request unanswered.
+TimeoutStartSec=660
+
+# NoNewPrivileges is deliberately absent: sudo has to be able to elevate for this one command. The
+# containment comes from the sudoers rule being a single exact command with no arguments.

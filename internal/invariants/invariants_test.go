@@ -48,9 +48,14 @@ var hardConstraints = []struct {
 		check:    checkHostStdlib,
 	},
 	{
-		name:     "the compose file keeps the container's privilege boundary",
-		fixtures: []string{"compose-bridge-network", "compose-docker-socket", "compose-published-port"},
-		check:    checkComposeInvariants,
+		name: "the compose file keeps the container's privilege boundary",
+		fixtures: []string{
+			"compose-bridge-network",
+			"compose-docker-socket",
+			"compose-published-port",
+			"compose-writable-outbox",
+		},
+		check: checkComposeInvariants,
 	},
 	{
 		name:     "dependencies are on the allowlist",

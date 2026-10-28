@@ -12,12 +12,19 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 )
 
-// composeVolumes is the complete list of paths the container may see (decision #57). Everything on it
-// is read-only; anything else is a new decision, not a one-line edit.
+// composeVolumes is the complete list of paths the container may see (decisions #57, #63). Everything
+// on it is read-only; anything else is a new decision, not a one-line edit.
 var composeVolumes = []string{
 	"config.yaml:/config/config.yaml:ro",
 	"icons:/config/icons:ro",
 	"status:/status:ro",
+	"control/outbox:/control/outbox:ro",
+}
+
+// composeWritable is the one mount the container may write to: queued requests, nothing else. It is
+// how a tap leaves the container at all (decision #63).
+var composeWritable = []string{
+	"control/inbox:/control/inbox",
 }
 
 // composeService is only the fields the invariants look at. A field that is not here is not checked
@@ -105,19 +112,25 @@ func checkComposeInvariants(root string) error {
 		}
 	}
 
-	allowed := make(map[string]bool, len(composeVolumes))
+	allowed := make(map[string]bool, len(composeVolumes)+len(composeWritable))
 	for _, volume := range composeVolumes {
+		allowed[volume] = true
+	}
+	for _, volume := range composeWritable {
 		allowed[volume] = true
 	}
 	mounted := make(map[string]bool, len(service.Volumes))
 	for _, volume := range service.Volumes {
 		trimmed := strings.TrimPrefix(volume, "./")
 		if !allowed[trimmed] {
-			return fmt.Errorf("%s: volume %q is not on the allowlist %v", name, volume, composeVolumes)
+			return fmt.Errorf("%s: volume %q is not on the allowlist %v", name, volume, append(composeVolumes, composeWritable...))
+		}
+		if strings.HasSuffix(trimmed, ":ro") == slices.Contains(composeWritable, trimmed) {
+			return fmt.Errorf("%s: volume %q has the wrong access mode; only %v is writable", name, volume, composeWritable)
 		}
 		mounted[trimmed] = true
 	}
-	for _, volume := range composeVolumes {
+	for _, volume := range append(append([]string{}, composeVolumes...), composeWritable...) {
 		if !mounted[volume] {
 			return fmt.Errorf("%s: volume %q is missing", name, volume)
 		}

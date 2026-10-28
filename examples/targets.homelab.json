@@ -1,0 +1,88 @@
+{
+  "targets": {
+    "adguard": {
+      "kind": "systemd",
+      "unit": "AdGuardHome.service",
+      "actions": ["start", "stop", "restart"],
+      "dns": true,
+      "criticality": "high",
+      "no_update_reason": "AdGuard has no scripted updater"
+    },
+    "unbound": {
+      "kind": "systemd",
+      "unit": "unbound.service",
+      "actions": ["start", "stop", "restart"],
+      "dns": true,
+      "criticality": "high",
+      "no_update_reason": "no scripted updater"
+    },
+    "polaris": {
+      "kind": "compose",
+      "dir": "/home/autumn/Polaris",
+      "service": "polaris",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "medium",
+      "update": { "kind": "unit", "unit": "polaris-update.service" }
+    },
+    "searxng": {
+      "kind": "compose",
+      "dir": "/home/autumn/Polaris",
+      "service": "searxng",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "medium",
+      "update": { "kind": "unit", "unit": "polaris-update.service" }
+    },
+    "ivy": {
+      "kind": "compose",
+      "dir": "/home/autumn/ivy",
+      "service": "ivy",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "medium",
+      "update": { "kind": "unit", "unit": "ivy-update.service" }
+    },
+    "vaultwarden": {
+      "kind": "compose",
+      "dir": "/home/autumn/vaultwarden",
+      "service": "vaultwarden",
+      "actions": ["start", "stop", "restart"],
+      "criticality": "high",
+      "no_update_reason": "capture its run spec as compose before enabling updates"
+    },
+    "bwmon": {
+      "kind": "systemd",
+      "unit": "bwmon.service",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "low",
+      "update": {
+        "kind": "command",
+        "cmd": ["/home/autumn/homelab/bandwidth-monitor/bwmon", "update"],
+        "run_as": "autumn"
+      }
+    },
+    "her-go": {
+      "kind": "systemd",
+      "unit": "her-go.service",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "medium",
+      "update_timeout_s": 420,
+      "update": {
+        "kind": "command",
+        "cmd": ["/home/autumn/her-go/her", "update"],
+        "run_as": "autumn"
+      }
+    },
+    "meridian": {
+      "kind": "systemd",
+      "unit": "meridian.service",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "high",
+      "result_first": true,
+      "update": { "kind": "unit", "unit": "meridian-update.service" }
+    },
+    "host": {
+      "kind": "host",
+      "actions": ["reboot"],
+      "criticality": "high"
+    }
+  }
+}

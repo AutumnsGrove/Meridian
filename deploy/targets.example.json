@@ -1,0 +1,46 @@
+{
+  "targets": {
+    "worker": {
+      "kind": "systemd",
+      "unit": "worker.service",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "medium",
+      "update": { "kind": "unit", "unit": "worker-update.service" }
+    },
+    "resolver": {
+      "kind": "systemd",
+      "unit": "resolver.service",
+      "actions": ["start", "stop", "restart"],
+      "dns": true,
+      "criticality": "high",
+      "no_update_reason": "this server has no scripted updater"
+    },
+    "app": {
+      "kind": "compose",
+      "dir": "/srv/app",
+      "service": "app",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "medium",
+      "update": { "kind": "docker" }
+    },
+    "sidecar": {
+      "kind": "container",
+      "container": "sidecar",
+      "actions": ["start", "stop", "restart"],
+      "criticality": "low"
+    },
+    "hub": {
+      "kind": "systemd",
+      "unit": "hub.service",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "high",
+      "result_first": true,
+      "update": { "kind": "unit", "unit": "hub-update.service" }
+    },
+    "host": {
+      "kind": "host",
+      "actions": ["reboot"],
+      "criticality": "high"
+    }
+  }
+}

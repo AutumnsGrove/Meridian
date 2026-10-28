@@ -1,0 +1,18 @@
+# The control watcher: the path unit fires the moment the container has written a request.
+#
+# DirectoryNotEmpty= is why every write goes through a temp path and a rename (decision #36): the
+# trigger fires when a name appears, which could be while the container is still writing. The rename
+# makes "the name is there" and "the bytes are there" the same event.
+#
+# @CONTROL_DIR@ is filled by the installer (T36). It is the host side of the container's one writable
+# mount, so the queue lives inside it and the outbox beside it.
+[Unit]
+Description=Meridian control queue watcher
+Documentation=https://github.com/autumnsgrove/meridian/blob/main/docs/CONTROL.md
+
+[Path]
+DirectoryNotEmpty=@CONTROL_DIR@/inbox/queue
+Unit=meridian-control.service
+
+[Install]
+WantedBy=paths.target

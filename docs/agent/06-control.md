@@ -291,7 +291,9 @@ full round trip is exercised without root).
 
 ## T31 Units, sudoers and installer pieces
 
-Under `deploy/`, templated with `@…@` placeholders filled by the installer (T36):
+Under `deploy/`, templated with `@…@` placeholders filled by the installer (T36). The unit, sudoers,
+allowlist and observe examples are tested here; the installer only fills in the placeholders and
+appends `meridian-control.path` to `observe.json`.
 - `systemd/meridian-control.path`: `DirectoryNotEmpty=@CONTROL_DIR@/inbox/queue`, `Unit=meridian-control.service`.
 - `systemd/meridian-control.service`: `Type=oneshot`, `User=@DEPLOY_USER@`,
   `ExecStart=/usr/bin/sudo -n /etc/meridian/meridian-host exec`, `TimeoutStartSec=660`,
@@ -306,6 +308,8 @@ Under `deploy/`, templated with `@…@` placeholders filled by the installer (T3
   `control/outbox:/control/outbox:ro`. The compose invariants test (T23) is extended to allow exactly
   these and nothing wider.
 - `observe.json` generation adds `meridian-control.path` automatically so executor health is visible.
+  For now `deploy/observe.example.json` is the list the probe must be given; T36's installer appends
+  it, and `TestDeploy_TheObserveListWatchesTheExecutor` checks the shape the probe reads.
 
 **Tests**: a Go test that parses the unit files and asserts the directives above (a data-driven list of
 `(file, key, expected)`); sudoers has no `*` and a single command; both JSON examples load clean.
