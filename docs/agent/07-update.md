@@ -47,16 +47,18 @@ bash `update.sh` (decision #52). It is the only code that pulls or recreates the
   with `O_NOFOLLOW`, size cap 128 bytes, and **re-validate**: the final image reference is built from
   the allowlisted repo in `targets.json` (`update.image`, e.g. `ghcr.io/autumnsgrove/meridian`) plus
   `@` plus a digest matching `^sha256:[0-9a-f]{64}$`. Anything else is refused. Never a tag.
-- Steps, each a small function with a fake `Commander` in tests: record the current pinned digest from
-  `.env`; write the new `MERIDIAN_IMAGE=<repo>@<digest>` into `.env` atomically (preserving every
-  other line byte for byte); `docker compose pull`; `docker compose up -d`; poll
-  `http://127.0.0.1:<port>/healthz` for up to 120s; on any failure restore the previous digest in
-  `.env`, `up -d` again, and report `failed` with the reason. The result is written first (`ResultFirst`)
-  because the container dies during recreate.
+- Steps, each a small function with a fake `Commander` in tests: record the current `.env`; write the
+  new `MERIDIAN_IMAGE=<repo>@<digest>` into `.env` atomically (preserving every other line byte for
+  byte); `docker compose pull`; `docker compose up -d`; poll `http://127.0.0.1:<port>/healthz` for up
+  to 120s; on any failure restore the previous **whole `.env`** and `up -d` again, then report `failed`
+  with the reason. The result is written first (`ResultFirst`) because the container dies during
+  recreate. Budgets are 180s pull, 90s recreate, 120s health and 90s rollback, so a rollback still fits
+  inside the executor's 600s; the docker commands stay in the updater's process group so the executor's
+  timeout kill reaches them too (decision #89).
 - It runs as the deploy user (docker group), launched by the executor, never directly by the container.
-- `.env` rewriting is a pure function `SetVar(contents, key, value) string` with its own tests and a fuzz
-  target: no other line changes, no duplicate keys, no newline injection through the value (the
-  digest grammar already forbids it; the function must refuse regardless).
+- `.env` rewriting is a pure function `SetVar(contents, key, value) (string, error)` with its own tests
+  and a fuzz target: no other line changes, no duplicate keys, no newline injection through the value
+  (the digest grammar already forbids it; the function must refuse regardless).
 
 **Tests first**: happy path; unhealthy new container triggers rollback and the old digest is back in
 `.env`; reference with a tag, a different registry, uppercase hex, trailing whitespace or a `\n`
