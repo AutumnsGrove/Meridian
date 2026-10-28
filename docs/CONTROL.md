@@ -162,7 +162,8 @@ shows up as a refused action, which is the correct direction for the failure to 
 array — never a shell string), `docker` (one `docker compose up -d --pull always <service>`, which
 pulls and recreates together), or `self`
 (Meridian's own digest-pinned update, run by `meridian-host update`; carries the image repository,
-the compose directory and the health URL).
+the compose directory, the service, the loopback health port and the signal file). Exactly one
+target may be `self`, because the command finds it by kind rather than taking a target argument.
 
 ### Who runs what (this is not cosmetic)
 
@@ -178,6 +179,7 @@ behind. The next update, invoked by the service's own CLI as `autumn`, then fail
 | `update.kind: command` | deploy user (`autumn`) | the app's own updater writes to its own checkout |
 | `update.kind: docker`, `kind: compose` | deploy user | `docker` group, and the compose project directory is user-owned |
 | `update.kind: unit` | root (via systemctl) | the oneshot unit already declares its own `User=` |
+| `update.kind: self` | deploy user | `docker` group; the command re-executes `meridian-host update` as the same user and must never leave root-owned files in `~/Meridian` |
 
 Implementation: `setpriv --reuid=… --regid=… --init-groups` (or `runuser -u`) for the deploy-user
 cases, with an explicit `PATH` including `/usr/local/bin` — Go lives there on this box
@@ -197,7 +199,7 @@ What v1 should allow. This table is the design; `targets.json` is the implementa
 | `vaultwarden` | compose `~/vaultwarden` svc `vaultwarden` (after the capture below) | ✓ | ✓ | ✓ | `systemctl start` the compose pull/recreate, or the unit if one is added | Its `docker run` spec must be captured as compose first — see below |
 | `bwmon` | systemd `bwmon.service` (+`Requires=bwmon-nft.service`) | ✓ | ✓ | ✓ | `bwmon update` (git pull + rebuild + restart) | First control target, least critical |
 | `her-go` | systemd `her-go.service` | ✓ | ✓ | ✓ | `{"kind":"command","cmd":["/home/autumn/her-go/her","update"]}` as `autumn` | Same path as Telegram's `/update`: git pull → `go build` → `procmgr` restart (which sudo-restarts itself). Must run as `autumn` — see "Who runs what". `Restart=always` means a stop is a real stop |
-| `meridian` | systemd `meridian.service` | ✓ | ✓ | ✓ | `systemctl start meridian-update.service` | Result written by the host *before* the container dies |
+| `meridian` | systemd `meridian.service` | ✓ | ✓ | ✓ | `meridian-host update`: pin, pull, recreate, health-check, roll back | Result written by the host *before* the container dies; the digest is the one the tap resolved |
 | `host` | host | — | — | — | `reboot` only | No shutdown, no arbitrary reboot flags |
 
 Two entries that must **not** appear: `polaris.service` (the stale bare-metal unit left behind by

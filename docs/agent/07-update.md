@@ -39,6 +39,9 @@ rejected at config load; the handoff file is atomic.
 `internal/hostexec` (stdlib only), invoked as the `meridian` target's `update` command, replacing the
 bash `update.sh` (decision #52). It is the only code that pulls or recreates the Meridian container.
 
+- The allowlist entry carries the repository (`image`), the compose `dir`, the `service`, the loopback
+  `port` and the `signal_file`. Exactly one target may be `self`; the command finds it by kind, so no
+  target name reaches its command line.
 - Input: nothing from the request except the signal file written by T34 (on the update tap, before
   the request is queued), which is untrusted. Read it
   with `O_NOFOLLOW`, size cap 128 bytes, and **re-validate**: the final image reference is built from
