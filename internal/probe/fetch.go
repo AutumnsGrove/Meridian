@@ -20,20 +20,34 @@ import (
 	"github.com/autumnsgrove/meridian/internal/config"
 )
 
-// Request is one outbound GET: the URL from the config, verbatim, and the credential to attach.
+// Request is one outbound GET or HEAD: the URL from the config, verbatim, the credential to attach,
+// and any literal headers. A probe uses only the URL and Auth; the updater adds a method and headers
+// for the registry protocol, which is why this seam is one client rather than two (decision #20).
 type Request struct {
-	URL  string
-	Auth config.Auth
+	URL     string
+	Method  string
+	Auth    config.Auth
+	Headers []Header
 }
 
-// Response is what a fetch produced: the status line and the body, capped at the fetcher's limit.
+// Header is one literal header a caller such as the updater needs. A probe gets its headers from
+// config.Auth, where the value comes from the environment at request time; these values are already
+// in memory, so they are set after auth and validated the same way.
+type Header struct {
+	Name  string
+	Value string
+}
+
+// Response is what a fetch produced: the status line, the headers and the body, capped at the
+// fetcher's limit. A HEAD has no body and the registry digest lives in the headers.
 type Response struct {
 	Status int
+	Header http.Header
 	Body   []byte
 }
 
-// Fetcher performs one GET. It is the seam tests replace with a function literal, and the only way
-// a probe reaches a network service.
+// Fetcher performs one GET or HEAD. It is the seam tests replace with a function literal, and the
+// only way a probe or the updater reaches a network service.
 type Fetcher func(ctx context.Context, request Request) (Response, error)
 
 // The closed set of fetch failures. Everything a probe can say about a network call is one of these
@@ -97,10 +111,10 @@ func NewHTTPFetcher(getenv func(string) string, userAgent string, limit int64) F
 			return Response{}, classify(err)
 		}
 		if int64(len(body)) > limit {
-			return Response{Status: reply.StatusCode},
+			return Response{Status: reply.StatusCode, Header: reply.Header.Clone()},
 				fmt.Errorf("%w: response body exceeds %d bytes", ErrBodyTooLarge, limit)
 		}
-		return Response{Status: reply.StatusCode, Body: body}, nil
+		return Response{Status: reply.StatusCode, Header: reply.Header.Clone(), Body: body}, nil
 	}
 }
 
@@ -120,7 +134,15 @@ func BuildRequest(ctx context.Context, request Request, getenv func(string) stri
 		return nil, fmt.Errorf("%w: the URL carries credentials", ErrBadRequest)
 	}
 
-	built, err := http.NewRequestWithContext(ctx, http.MethodGet, request.URL, http.NoBody)
+	method := request.Method
+	if method == "" {
+		method = http.MethodGet
+	}
+	if method != http.MethodGet && method != http.MethodHead {
+		return nil, fmt.Errorf("%w: method %q is not GET or HEAD", ErrBadRequest, method)
+	}
+
+	built, err := http.NewRequestWithContext(ctx, method, request.URL, http.NoBody)
 	if err != nil {
 		// The underlying error repeats the URL, so it is deliberately not wrapped.
 		return nil, fmt.Errorf("%w: the URL could not become a request", ErrBadRequest)
@@ -143,6 +165,15 @@ func BuildRequest(ctx context.Context, request Request, getenv func(string) stri
 			return nil, fmt.Errorf("%w: the value of header %q has a control character", ErrBadRequest, header.name)
 		}
 		built.Header.Set(header.name, header.value)
+	}
+	for _, header := range request.Headers {
+		if !isToken(header.Name) {
+			return nil, fmt.Errorf("%w: %q is not a header name", ErrBadRequest, header.Name)
+		}
+		if hasControlBytes(header.Value) {
+			return nil, fmt.Errorf("%w: the value of header %q has a control character", ErrBadRequest, header.Name)
+		}
+		built.Header.Set(header.Name, header.Value)
 	}
 	return built, nil
 }
@@ -248,7 +279,12 @@ func requestKey(request Request) string {
 		key.WriteByte(':')
 		key.WriteString(value)
 	}
+	writeField(request.Method)
 	writeField(request.URL)
+	for _, header := range request.Headers {
+		writeField("literal:" + header.Name)
+		writeField(header.Value)
+	}
 	for _, name := range request.Auth.BasicEnv {
 		writeField("basic:" + name)
 	}

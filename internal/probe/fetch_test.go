@@ -368,6 +368,123 @@ func TestMemo_CollapsesConcurrentDuplicates(t *testing.T) {
 	}
 }
 
+func TestFetcher_HeadReturnsHeadersAndNoBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodHead {
+			t.Errorf("method = %q, want HEAD", r.Method)
+		}
+		w.Header().Set("Docker-Content-Digest", "sha256:"+strings.Repeat("a", 64))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("a body HEAD must drop"))
+	}))
+	defer server.Close()
+
+	response, err := newFetcher()(context.Background(), probe.Request{URL: server.URL, Method: http.MethodHead})
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if response.Status != http.StatusOK {
+		t.Errorf("Status = %d, want 200", response.Status)
+	}
+	if got := response.Header.Get("Docker-Content-Digest"); got != "sha256:"+strings.Repeat("a", 64) {
+		t.Errorf("header = %q, want the manifest digest", got)
+	}
+	if len(response.Body) != 0 {
+		t.Errorf("body = %q, want nothing after a HEAD", response.Body)
+	}
+}
+
+func TestFetcher_SetsLiteralHeaders(t *testing.T) {
+	var got http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	_, err := newFetcher()(context.Background(), probe.Request{
+		URL: server.URL,
+		Headers: []probe.Header{
+			{Name: "Authorization", Value: "Bearer registry-token"},
+			{Name: "Accept", Value: "application/vnd.oci.image.index.v1+json"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if got.Get("Authorization") != "Bearer registry-token" {
+		t.Errorf("Authorization = %q", got.Get("Authorization"))
+	}
+	if got.Get("Accept") != "application/vnd.oci.image.index.v1+json" {
+		t.Errorf("Accept = %q", got.Get("Accept"))
+	}
+}
+
+func TestBuildRequest_RefusesAnythingButGetOrHead(t *testing.T) {
+	for _, method := range []string{"POST", "PUT", "DELETE", "get", "HEAD ", "\x00"} {
+		t.Run(method, func(t *testing.T) {
+			_, err := probe.BuildRequest(context.Background(),
+				probe.Request{URL: "http://hub.example.org/", Method: method}, nil)
+			if !errors.Is(err, probe.ErrBadRequest) {
+				t.Fatalf("method %q: error = %v, want ErrBadRequest", method, err)
+			}
+		})
+	}
+}
+
+func TestBuildRequest_RefusesUnsafeLiteralHeaders(t *testing.T) {
+	tests := []struct {
+		name   string
+		header probe.Header
+	}{
+		{"empty name", probe.Header{Name: "", Value: "x"}},
+		{"space in name", probe.Header{Name: "Bad Header", Value: "x"}},
+		{"colon in name", probe.Header{Name: "Bad:Header", Value: "x"}},
+		{"newline in value", probe.Header{Name: "X-Token", Value: "a\r\nb"}},
+		{"nul in value", probe.Header{Name: "X-Token", Value: "a\x00b"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := probe.BuildRequest(context.Background(),
+				probe.Request{URL: "http://hub.example.org/", Headers: []probe.Header{test.header}}, nil)
+			if !errors.Is(err, probe.ErrBadRequest) {
+				t.Fatalf("error = %v, want ErrBadRequest", err)
+			}
+		})
+	}
+}
+
+func TestMemo_KeepsMethodsAndHeadersApart(t *testing.T) {
+	var calls atomic.Int64
+	fetch := probe.Memo(func(_ context.Context, request probe.Request) (probe.Response, error) {
+		calls.Add(1)
+		return probe.Response{Status: 200, Body: []byte(request.Method + request.Headers[0].Value)}, nil
+	})
+
+	get, err := fetch(context.Background(), probe.Request{URL: "http://one.test/", Headers: []probe.Header{{Name: "X-A", Value: "one"}}})
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	head, err := fetch(context.Background(), probe.Request{
+		URL: "http://one.test/", Method: http.MethodHead,
+		Headers: []probe.Header{{Name: "X-A", Value: "one"}},
+	})
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	other, err := fetch(context.Background(), probe.Request{URL: "http://one.test/", Headers: []probe.Header{{Name: "X-A", Value: "two"}}})
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+
+	if string(get.Body) != "one" || string(head.Body) != "HEADone" || string(other.Body) != "two" {
+		t.Fatalf("bodies = %q, %q, %q: distinct requests shared one memo entry", get.Body, head.Body, other.Body)
+	}
+	if got := calls.Load(); got != 3 {
+		t.Errorf("calls = %d, want 3", got)
+	}
+}
+
 // FuzzBuildRequest treats the URL and one auth header as untrusted: the result is either an error
 // in the closed set or a request that can only reach the host the config named.
 func FuzzBuildRequest(f *testing.F) {
