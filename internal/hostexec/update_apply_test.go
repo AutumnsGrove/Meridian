@@ -197,6 +197,7 @@ func TestUpdater_AppliesTheDigestAndRecreates(t *testing.T) {
 
 func TestUpdater_RollsBackWhenTheNewContainerIsUnhealthy(t *testing.T) {
 	fixture := newApplyFixture(t, http.StatusInternalServerError)
+	started := fixture.clock.Now()
 
 	err := fixture.updater.Apply(context.Background())
 	if err == nil {
@@ -213,6 +214,10 @@ func TestUpdater_RollsBackWhenTheNewContainerIsUnhealthy(t *testing.T) {
 	}
 	if fixture.clock.sleeps == 0 {
 		t.Error("the health poll gave up without waiting")
+	}
+	// The poll gives the container its whole 120s window, not one failed attempt.
+	if elapsed := fixture.clock.Now().Sub(started); elapsed < 120*time.Second || elapsed > 122*time.Second {
+		t.Errorf("health poll lasted %v, want about 120s", elapsed)
 	}
 }
 
