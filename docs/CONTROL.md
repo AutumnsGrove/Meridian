@@ -328,8 +328,8 @@ Phase 2, 2026-10-28, `lepotato` (aarch64, systemd 257, Docker 29.6):
 ## Adding a target (checklist)
 
 1. Add it to `/etc/meridian/targets.json` with an explicit `actions` list and a `criticality`.
-2. Re-run the installer's unit-list generation so `probe.sh` also reports on it — the observable set
-   is derived from the allowlist deliberately, so a target cannot be controllable but invisible.
+2. Add the target's unit to `/etc/meridian/observe.json` so `meridian-host probe` reports on it. The
+   installer seeds that file with `meridian-control.path`; it does not overwrite an existing one.
 3. Add a matching `control:` block to `config.yaml`, and a probe/vital entry per
    [INTEGRATIONS.md](INTEGRATIONS.md).
 4. Decide `dns: true` if stopping it breaks name resolution for the tailnet.

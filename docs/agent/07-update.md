@@ -85,15 +85,19 @@ change. A host-binary upgrade is a deliberate `install.sh --upgrade-host` run by
 
 **`deploy/install.sh`** (bash, `set -euo pipefail`, `shellcheck`-clean, must refuse to run as a
 non-root user other than via sudo; idempotent):
-1. Parse flags: `--deploy-user`, `--dir` (default `~/Meridian`), `--host-binary PATH|--version vX.Y.Z`.
+1. Parse flags: `--deploy-user`, `--dir` (default `~/Meridian`), `--host-binary PATH|--version vX.Y.Z`,
+   `--image-digest` / `--image-tag`, `--upgrade-host`, `--dry-run`.
 2. Create `~/Meridian/{config,icons,status,control/inbox/{tmp,queue},control/outbox/results,update-signal}` with
-   correct owners and modes (inbox owned by the deploy user, outbox root-owned 0755).
+   correct owners and modes (inbox owner the deploy user, outbox root-owned 0755). Copy
+   `docker-compose.yml` and `config.yaml` from the repo only when the target does not exist.
 3. Install `meridian-host` (download + `sha256sum -c` against `SHA256SUMS`, or a local path) to
    `/etc/meridian/meridian-host`, mode 0755, root-owned; `host.json` and (if missing) `targets.json` and
    `observe.json` from the examples, root-owned 0644. **Never overwrites an existing `targets.json`.**
 4. Render and install the systemd units and the sudoers file from templates (`@…@` placeholders),
    validate with `visudo -cf` and `systemd-analyze verify` before moving into place.
-5. Write `.env` (`MERIDIAN_UID`, `MERIDIAN_GID`, `MERIDIAN_IMAGE` pinned by digest) if missing.
+5. Write `.env` (`MERIDIAN_UID`, `MERIDIAN_GID`, `MERIDIAN_IMAGE` pinned by digest) if missing. The pin
+   is `--image-digest` when given, otherwise resolved from GHCR for `--image-tag` (default `latest`,
+   or the `--version` tag); a failed resolution stops the install rather than writing a tag.
 6. Enable the timer and `.path` units, then **verify** them (active, enabled, `is-failed` empty, probe
    file appears within 45s), in the spirit of Polaris/Ivy's `watcher-sync-verify.sh`. Print a clear
    pass/fail table.
@@ -104,7 +108,11 @@ non-root user other than via sudo; idempotent):
 placeholders) so it is unit-tested instead of being sed in bash; a test renders every template and
 asserts no `@` placeholder remains and the output passes the unit-directive tests from T31. The
 installer's shell glue stays thin enough that `shellcheck` plus a dry-run mode (`--dry-run` prints the
-actions) is the test.
+actions) is the test; a Go test runs the real script with `--dry-run`, a fake host binary and a
+temporary `--dir`, and asserts the plan is printed and nothing is created.
+
+The generic `deploy/targets.example.json` names the dashboard `meridian`, matching the config
+template's `update.target`, so a fresh install's pair points at the same target.
 
 ## T37 `[human]` Phase 4 on the potato
 
