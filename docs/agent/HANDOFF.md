@@ -3,7 +3,7 @@
 Read this first in every session. It is **rewritten, not appended**, at the end of each session; the
 history is in git. Keep it under about 40 lines: it is for a cold start with an empty context.
 
-## Last session: S13-S16 (2026-10-27/28)
+## Last session: S13-S16, then the box (2026-10-27/28)
 
 Finished: **T28, T29, T30, T31**, all ticked. **Stage 6 (control plane) is code-complete**: the only
 work left in it is the two `[human]` gates, T32 and T33.
@@ -23,11 +23,32 @@ work left in it is the two `[human]` gates, T32 and T33.
   `control.spec.ts` runs the real round trip: restart to receipt, armed DNS stop with countdown and
   cancel, and a reboot that writes its provisional result and clears when the hub answers.
 
+## On the potato (Phase 1, and Phase 2 for bwmon only)
+
+The owner asked for this and it is done, but **T24 and T32 stay unticked**: `[human]` tasks are the
+owner's to tick. What is on the box now, all of it reversible:
+
+- `~/Meridian/`: `config.yaml` (from `examples/homelab.yaml`, `control.reboot: false` for now),
+  `docker-compose.yml`, `.env` (`MERIDIAN_IMAGE=meridian:0.1.0-dev`, uid/gid 1000), and the four
+  directories (`icons`, `status`, `control/inbox/{tmp,queue}`, `control/outbox/results`).
+- The image was built for arm64 on the Mac and `docker load`ed on the box. It is not from GHCR yet;
+  T34/T35 is what pins it properly.
+- `https://lepotato.taild95077.ts.net:8891` via `tailscale serve --https=8891`
+  (`sudo tailscale serve --https=8891 off` undoes it). 10 of 10 tiles up.
+- `/etc/meridian/{meridian-host,host.json,targets.json,observe.json}` (bwmon only,
+  `observe.json` = her-go.service + meridian-control.path) and `/etc/sudoers.d/meridian`, validated.
+- `meridian-probe.timer` and `meridian-control.path` are enabled. One bwmon restart was measured at
+  **831ms** wall / **165ms** in systemctl; refusals and the no-executor state were checked. Numbers
+  are in `docs/CONTROL.md` "Measured on the box".
+- AdGuard's vital is degraded: `MERIDIAN_ADGUARD_USER` and `MERIDIAN_ADGUARD_PASS` are not in `.env`.
+  Only the owner can add those.
+
 ## Next
 
-Session **S17** (was S15 in the table): **T34** (`updater`: newest GHCR digest, the handoff file),
-then T35 (`meridian-host update` with pin, pull, recreate, health poll, rollback). Read
-`docs/agent/07-update.md` and `docs/CONTROL.md` "Self-update".
+Session **S17**: **T34** (`updater`: newest GHCR digest, the handoff file), then T35
+(`meridian-host update` with pin, pull, recreate, health poll, rollback). Read
+`docs/agent/07-update.md` and `docs/CONTROL.md` "Self-update". Then T36's installer is what turns
+this hand-install into a repeatable one.
 
 ## State of the tree
 
@@ -54,10 +75,12 @@ S13-S16's commits are waiting for the owner's next batch.
 
 ## For the owner
 
-- **T32 (Phase 2 on the potato) is now code-unblocked** and is the next real step: install
-  `/etc/meridian/*`, `deploy/systemd/meridian-control.*` and the sudoers rule by hand (the installer is
-  T36), fill in `@CONTROL_DIR@` and `@DEPLOY_USER@`, start with **bwmon restart only**, and measure
-  the latency. The exact checklist is in `docs/agent/06-control.md` T32.
+- **T32 is done on the box but needs your eyes**: open the page on your phone, press restart on
+  bwmon, and confirm the 40s reboot button is disabled with a reason (the `host` target is not in the
+  allowlist yet). Then tick T24 and T32.
+- **T33** is the next gate and needs your hands: enable the rest of the matrix in
+  `/etc/meridian/targets.json` (start from `examples/targets.homelab.json`), set `control.reboot: true`
+  in `~/Meridian/config.yaml`, and prove the AdGuard auto-restore.
 - Dependabot's npm job will offer TypeScript 7, which breaks the `svelte-check` peer range: it needs a
   decision, not a merge.
 - `[human]` gates T24, T32, T33, T37 are open. T24 (Phase 1) and T32 (Phase 2) are both unblocked.
