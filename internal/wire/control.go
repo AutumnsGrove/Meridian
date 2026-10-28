@@ -194,6 +194,7 @@ const (
 	CodeNotActiveAfter   Code = "not_active_after"
 	CodeRestoreFailed    Code = "restore_failed"
 	CodeBadRef           Code = "bad_ref"
+	CodeUpdateFailed     Code = "update_failed"
 	CodeInternal         Code = "internal"
 	CodeUnavailable      Code = "unavailable"
 )
@@ -203,7 +204,7 @@ var codeOrder = []Code{
 	CodeBadRequest, CodeBadID, CodeBadAction, CodeBadTarget, CodeUnknownTarget,
 	CodeActionNotAllowed, CodeMissingAck, CodeBadAck, CodeStale, CodeReplay, CodeCoalesced,
 	CodeQueueFull, CodeTimeout, CodeExecFailed, CodeNotActiveAfter, CodeRestoreFailed,
-	CodeBadRef, CodeInternal, CodeUnavailable,
+	CodeBadRef, CodeUpdateFailed, CodeInternal, CodeUnavailable,
 }
 
 // codeSentences is the user-facing sentence for each code. They follow the copy rules: second
@@ -226,6 +227,7 @@ var codeSentences = map[Code]string{
 	CodeNotActiveAfter:   "The target did not come back after the action.",
 	CodeRestoreFailed:    "The stop was undone because the auto-restore could not be scheduled.",
 	CodeBadRef:           "The auto-restore reference is not valid.",
+	CodeUpdateFailed:     "The newest image could not be checked. Nothing was changed.",
 	CodeInternal:         "Something went wrong inside the executor.",
 	CodeUnavailable:      "The control plane is not installed on this box.",
 }

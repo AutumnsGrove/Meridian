@@ -22,7 +22,9 @@ Package `internal/updater` (container side, **no `os/exec`**, never pulls or rec
 - `Request(dir, digest)`: writes `update-signal/requested` (atomically, via `atomicfile`) containing
   only the digest. The host side re-validates; the container's file is just a hint. Actually applying
   it goes through the control plane as the `meridian` target's `update` action (T35), so nothing here
-  needs privileges.
+  needs privileges. `update.target` names that control target in config; the enqueue handler resolves
+  and writes the hint before it queues the request, extending that one response's write deadline to
+  the resolve cap (decision #87).
 - `GET /api/update` (read only) reports running version, newest digest, and whether an update exists.
   The tap itself is the ordinary `POST /api/control` with `target: meridian, action: update`.
 
@@ -37,7 +39,8 @@ rejected at config load; the handoff file is atomic.
 `internal/hostexec` (stdlib only), invoked as the `meridian` target's `update` command, replacing the
 bash `update.sh` (decision #52). It is the only code that pulls or recreates the Meridian container.
 
-- Input: nothing from the request except the signal file written by T34, which is untrusted. Read it
+- Input: nothing from the request except the signal file written by T34 (on the update tap, before
+  the request is queued), which is untrusted. Read it
   with `O_NOFOLLOW`, size cap 128 bytes, and **re-validate**: the final image reference is built from
   the allowlisted repo in `targets.json` (`update.image`, e.g. `ghcr.io/autumnsgrove/meridian`) plus
   `@` plus a digest matching `^sha256:[0-9a-f]{64}$`. Anything else is refused. Never a tag.

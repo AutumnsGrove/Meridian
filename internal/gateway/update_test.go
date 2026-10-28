@@ -3,7 +3,10 @@ package gateway_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,20 +16,21 @@ import (
 	"github.com/autumnsgrove/meridian/internal/wire"
 )
 
-const updateConfig = `
-update:
-  image: ghcr.io/owner/name
-  publish_url: https://api.example.org/runs
-`
-
 func withUpdate(t *testing.T, hub *testGateway) *config.Config {
 	t.Helper()
-	parsed, warnings, err := config.Parse([]byte(testConfig + updateConfig))
+	parsed, warnings, err := config.Parse([]byte(testConfig))
 	if err != nil {
 		t.Fatalf("parse the update config: %v", err)
 	}
 	if len(warnings) > 0 {
 		t.Fatalf("the update config should not warn: %v", warnings)
+	}
+	parsed.Services[0].Control = &config.ServiceControl{Target: "one", Actions: []string{"restart", "update"}}
+	parsed.Update = &config.Update{
+		Image:      "ghcr.io/owner/name",
+		PublishURL: "https://api.example.org/runs",
+		SignalDir:  "/update-signal",
+		Target:     "one",
 	}
 	hub.cfg = parsed
 	return parsed
@@ -143,5 +147,112 @@ func TestUpdate_IsReadOnly(t *testing.T) {
 	// refuses an API path: the only thing that matters is that no resolver ran and nothing changed.
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("POST /api/update status = %d, want 404: the tap is POST /api/control", recorder.Code)
+	}
+}
+
+func selfUpdateConfig(t *testing.T, hub *testGateway) (signalDir string, digest wire.Digest) {
+	t.Helper()
+	signalDir = filepath.Join(t.TempDir(), "update-signal")
+	if err := os.Mkdir(signalDir, 0o700); err != nil {
+		t.Fatalf("create the signal directory: %v", err)
+	}
+	digest = wire.Digest("sha256:" + strings.Repeat("c", 64))
+	hub.cfg.Update = &config.Update{
+		Image:      "ghcr.io/owner/name",
+		PublishURL: "https://api.example.org/runs",
+		SignalDir:  signalDir,
+		Target:     "one",
+	}
+	return signalDir, digest
+}
+
+func TestControl_SelfUpdateWritesTheHintBeforeQueueing(t *testing.T) {
+	hub := newTestGateway(t)
+	dirs := hub.mountControl(t)
+	signalDir, digest := selfUpdateConfig(t, hub)
+	called := false
+	hub.deps.Update = func(_ context.Context, settings *config.Update) (updater.Resolution, error) {
+		called = true
+		if settings == nil || settings.Target != "one" {
+			t.Fatalf("resolver settings = %+v, want the update block for one", settings)
+		}
+		return updater.Resolution{Digest: digest, Available: true}, nil
+	}
+
+	response := hub.postControl(t, `{"action":"update","target":"one"}`, nil)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d (%s), want 202", response.Code, response.Body.String())
+	}
+	if !called {
+		t.Fatal("the update request was queued without resolving a digest")
+	}
+	data, err := os.ReadFile(filepath.Join(signalDir, "requested"))
+	if err != nil {
+		t.Fatalf("read the hint: %v", err)
+	}
+	if got := string(data); got != digest.String() {
+		t.Errorf("hint = %q, want %q", got, digest)
+	}
+	entries, err := os.ReadDir(dirs.queue)
+	if err != nil {
+		t.Fatalf("read the queue: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("queue holds %d requests, want 1", len(entries))
+	}
+}
+
+func TestControl_SelfUpdateRefusesWhenTheCheckFails(t *testing.T) {
+	hub := newTestGateway(t)
+	dirs := hub.mountControl(t)
+	signalDir, _ := selfUpdateConfig(t, hub)
+	hub.deps.Update = func(context.Context, *config.Update) (updater.Resolution, error) {
+		return updater.Resolution{}, updater.ErrRegistry
+	}
+
+	response := hub.postControl(t, `{"action":"update","target":"one"}`, nil)
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d (%s), want 503", response.Code, response.Body.String())
+	}
+	if code := errorCode(t, response); code != wire.CodeUpdateFailed {
+		t.Errorf("code = %q, want %q", code, wire.CodeUpdateFailed)
+	}
+	if entries, _ := os.ReadDir(dirs.queue); len(entries) != 0 {
+		t.Errorf("a failed check still queued %d requests", len(entries))
+	}
+	if _, err := os.Stat(filepath.Join(signalDir, "requested")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a failed check still wrote the hint: %v", err)
+	}
+}
+
+func TestControl_OtherUpdatesDoNotResolveADigest(t *testing.T) {
+	hub := newTestGateway(t)
+	hub.mountControl(t)
+	called := false
+	hub.deps.Update = func(context.Context, *config.Update) (updater.Resolution, error) {
+		called = true
+		return updater.Resolution{}, nil
+	}
+
+	response := hub.postControl(t, `{"action":"update","target":"one"}`, nil)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d (%s), want 202", response.Code, response.Body.String())
+	}
+	if called {
+		t.Error("the resolver ran for a target no update block names")
+	}
+}
+
+func TestControl_SelfUpdateWithoutAResolverIsRefused(t *testing.T) {
+	hub := newTestGateway(t)
+	hub.mountControl(t)
+	selfUpdateConfig(t, hub)
+
+	response := hub.postControl(t, `{"action":"update","target":"one"}`, nil)
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d (%s), want 503", response.Code, response.Body.String())
+	}
+	if code := errorCode(t, response); code != wire.CodeUpdateFailed {
+		t.Errorf("code = %q, want %q", code, wire.CodeUpdateFailed)
 	}
 }

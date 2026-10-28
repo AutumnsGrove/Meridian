@@ -5,8 +5,11 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
+	"github.com/autumnsgrove/meridian/internal/config"
 	"github.com/autumnsgrove/meridian/internal/control"
+	"github.com/autumnsgrove/meridian/internal/updater"
 	"github.com/autumnsgrove/meridian/internal/wire"
 )
 
@@ -35,6 +38,15 @@ func enqueue(deps Deps) http.Handler {
 		if deps.Control == nil {
 			writeCode(w, http.StatusServiceUnavailable, wire.CodeUnavailable)
 			return
+		}
+
+		// A self-update is the one action whose meaning depends on the container: the digest is
+		// resolved here, written for the host to re-validate, and only then is the request queued.
+		// Everything else is a plain tap.
+		if cfg, _ := deps.current(); isSelfUpdate(cfg, envelope.Action, envelope.Target) {
+			if !writeUpdateHint(w, r, deps, cfg) {
+				return
+			}
 		}
 
 		id, err := deps.Control.Enqueue(r.Context(), control.Input{
@@ -68,6 +80,36 @@ func controlStatus(deps Deps) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, deps.Control.Status(r.Context()))
 	})
+}
+
+// isSelfUpdate reports whether this tap is the image's own update, which is the one request that has
+// to resolve a digest first. The target is config, never a name in code (decision #38).
+func isSelfUpdate(cfg *config.Config, action, target string) bool {
+	return cfg != nil && cfg.Update != nil && cfg.Update.Target != "" &&
+		action == string(wire.ActionUpdate) && target == cfg.Update.Target
+}
+
+// writeUpdateHint resolves the newest digest and writes the hint the host re-validates. It answers
+// the request itself on failure and reports whether the caller may queue the request. The write
+// deadline is extended because this check may wait out an in-flight build, which the server's
+// probe-sized timeout would otherwise cut off.
+func writeUpdateHint(w http.ResponseWriter, r *http.Request, deps Deps, cfg *config.Config) bool {
+	if deps.Update == nil {
+		writeCode(w, http.StatusServiceUnavailable, wire.CodeUpdateFailed)
+		return false
+	}
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(updater.MaxWait + time.Minute))
+
+	resolution, err := deps.Update(r.Context(), cfg.Update)
+	if err != nil {
+		writeCode(w, http.StatusServiceUnavailable, wire.CodeUpdateFailed)
+		return false
+	}
+	if err := updater.Request(cfg.Update.SignalDir, resolution.Digest); err != nil {
+		writeCode(w, http.StatusServiceUnavailable, wire.CodeUpdateFailed)
+		return false
+	}
+	return true
 }
 
 // decodeControlRequest reads the one body shape this route accepts: at most 8 KiB (also enforced by
