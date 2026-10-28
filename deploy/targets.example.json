@@ -35,7 +35,14 @@
       "actions": ["start", "stop", "restart", "update"],
       "criticality": "high",
       "result_first": true,
-      "update": { "kind": "unit", "unit": "hub-update.service" }
+      "update": {
+        "kind": "self",
+        "image": "ghcr.io/owner/hub",
+        "dir": "/srv/hub",
+        "service": "hub",
+        "port": 8891,
+        "signal_file": "/srv/hub/update-signal/requested"
+      }
     },
     "host": {
       "kind": "host",

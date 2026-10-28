@@ -34,6 +34,21 @@
       "actions": ["start", "stop", "restart"],
       "criticality": "low"
     },
+    "meridian": {
+      "kind": "systemd",
+      "unit": "meridian.service",
+      "actions": ["restart", "update"],
+      "criticality": "high",
+      "result_first": true,
+      "update": {
+        "kind": "self",
+        "image": "ghcr.io/owner/meridian",
+        "dir": "/srv/meridian",
+        "service": "meridian",
+        "port": 8891,
+        "signal_file": "/srv/meridian/update-signal/requested"
+      }
+    },
     "host": {
       "kind": "host",
       "actions": ["reboot"],

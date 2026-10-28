@@ -170,6 +170,10 @@ func TestDeploy_TheHomelabAllowlistKeepsTheHazards(t *testing.T) {
 	if target := targets["meridian"]; !target.ResultFirst {
 		t.Error("meridian must set result_first, or a self-restart loses its provisional result (decision #64)")
 	}
+	if target := targets["meridian"]; target.Update == nil || target.Update.Kind != hostexec.UpdateSelf ||
+		target.Update.Image != "ghcr.io/autumnsgrove/meridian" {
+		t.Errorf("meridian update = %+v, want the self update of its own image", target.Update)
+	}
 	if target := targets["vaultwarden"]; target.Offers("update") {
 		t.Error("vaultwarden offers update before its run spec is captured as compose (decision #22)")
 	}

@@ -77,7 +77,14 @@
       "actions": ["start", "stop", "restart", "update"],
       "criticality": "high",
       "result_first": true,
-      "update": { "kind": "unit", "unit": "meridian-update.service" }
+      "update": {
+        "kind": "self",
+        "image": "ghcr.io/autumnsgrove/meridian",
+        "dir": "/home/autumn/Meridian",
+        "service": "meridian",
+        "port": 8891,
+        "signal_file": "/home/autumn/Meridian/update-signal/requested"
+      }
     },
     "host": {
       "kind": "host",

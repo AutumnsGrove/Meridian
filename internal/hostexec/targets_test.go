@@ -54,8 +54,35 @@ func TestLoadTargets_AcceptsTheGolden(t *testing.T) {
 	if worker := targets["worker"]; worker.Container != "worker" {
 		t.Errorf("worker = %+v, want the container worker", worker)
 	}
+	if meridian := targets["meridian"]; meridian.Update == nil || meridian.Update.Kind != hostexec.UpdateSelf {
+		t.Errorf("meridian = %+v, want the self update", meridian)
+	}
 	if host := targets["host"]; host.Kind != "host" || len(host.Actions) != 1 || host.Actions[0] != "reboot" {
 		t.Errorf("host = %+v, want reboot only", host)
+	}
+}
+
+func TestLoadTargets_AcceptsASelfUpdate(t *testing.T) {
+	// The host binary finds this one entry by its kind, so exactly one is allowed and every field it
+	// needs to pin, pull and health-check is part of the allowlist.
+	document := `{"targets":{"meridian":{
+		"kind":"systemd","unit":"meridian.service","actions":["restart","update"],
+		"criticality":"high","result_first":true,
+		"update":{"kind":"self","image":"ghcr.io/owner/meridian","dir":"/srv/meridian",
+			"service":"meridian","port":8891,"signal_file":"/srv/meridian/update-signal/requested"}
+	}}}`
+	targets, err := hostexec.LoadTargets([]byte(document), deployUser)
+	if err != nil {
+		t.Fatalf("LoadTargets: %v", err)
+	}
+	update := targets["meridian"].Update
+	if update == nil || update.Kind != hostexec.UpdateSelf {
+		t.Fatalf("update = %+v, want a self update", update)
+	}
+	if update.Image != "ghcr.io/owner/meridian" || update.Dir != "/srv/meridian" ||
+		update.Service != "meridian" || update.Port != 8891 ||
+		update.SignalFile != "/srv/meridian/update-signal/requested" {
+		t.Errorf("update = %+v, want every self-update field parsed", update)
 	}
 }
 
@@ -103,6 +130,23 @@ func TestLoadTargets_RefusesWhatTheExecutorCannotSafelyRun(t *testing.T) {
 		{"command update with a NUL", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"command","cmd":["/opt/app\u0000","update"]}`)},
 		{"command update as another user", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"command","cmd":["/opt/app","update"],"run_as":"root"}`)},
 		{"unit update without a unit", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"unit"}`)},
+		{"self update without an image", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","dir":"/srv/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested"}`)},
+		{"self update with a tag", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app:latest","dir":"/srv/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested"}`)},
+		{"self update at another registry", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"docker.io/owner/app","dir":"/srv/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested"}`)},
+		{"self update without a dir", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested"}`)},
+		{"self update with a relative dir", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"srv/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested"}`)},
+		{"self update without a service", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","port":8891,"signal_file":"/srv/app/update-signal/requested"}`)},
+		{"self update with a hostile service", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"-v","port":8891,"signal_file":"/srv/app/update-signal/requested"}`)},
+		{"self update without a port", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","signal_file":"/srv/app/update-signal/requested"}`)},
+		{"self update with a port out of range", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","port":70000,"signal_file":"/srv/app/update-signal/requested"}`)},
+		{"self update without a signal file", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","port":8891}`)},
+		{"self update with a relative signal file", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","port":8891,"signal_file":"update-signal/requested"}`)},
+		{"self update with a unit", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested","unit":"app-update.service"}`)},
+		{"self update without result_first", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested"}`)},
+		{"two self update targets", `{"targets":{
+			"app":{"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested"}},
+			"other":{"kind":"systemd","unit":"other.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/other","dir":"/srv/other","service":"other","port":8892,"signal_file":"/srv/other/update-signal/requested"}}
+		}}`},
 		{"no_update_reason with an update", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"no_update_reason":"none","update":{"kind":"unit","unit":"app-update.service"}`)},
 		{"unknown criticality", wrap("app", valid+`,"criticality":"apocalyptic"`)},
 		{"timeout too large", wrap("app", valid+`,"update_timeout_s":1801`)},

@@ -82,11 +82,24 @@ type Target struct {
 }
 
 // Update is one way to update a target. Every field comes from the allowlist, never from a request.
+// The self kind is Meridian's own digest-pinned update: it needs the repository, the compose project
+// that runs the container, the service to recreate, the loopback port its health endpoint answers on,
+// and the signal file the container writes. The rest of the fields are refused on it.
 type Update struct {
 	Kind  string   `json:"kind"`
 	Unit  string   `json:"unit,omitempty"`
 	Cmd   []string `json:"cmd,omitempty"`
 	RunAs string   `json:"run_as,omitempty"`
+	// Image is the GHCR repository for a self update, "ghcr.io/<owner>/<name>". Never a tag.
+	Image string `json:"image,omitempty"`
+	// Dir is the compose project directory holding docker-compose.yml and .env.
+	Dir string `json:"dir,omitempty"`
+	// Service is the compose service the update pulls and recreates.
+	Service string `json:"service,omitempty"`
+	// Port is the loopback port the container's /healthz answers on.
+	Port int `json:"port,omitempty"`
+	// SignalFile is where the container writes the digest it resolved (decision #87).
+	SignalFile string `json:"signal_file,omitempty"`
 }
 
 // Targets is the allowlist, keyed by the slug the page sends.
@@ -155,6 +168,16 @@ func ValidateTargets(targets Targets, deployUser string) error {
 		if target.UpdateTimeoutS < 0 || target.UpdateTimeoutS > 1800 {
 			fail("%s: update_timeout_s %d is outside 1..1800", where, target.UpdateTimeoutS)
 		}
+	}
+
+	selfUpdates := 0
+	for id := range targets {
+		if update := targets[id].Update; update != nil && update.Kind == UpdateSelf {
+			selfUpdates++
+		}
+	}
+	if selfUpdates > 1 {
+		fail("there are %d self update targets; the host finds it by kind, so only one is allowed", selfUpdates)
 	}
 
 	if len(problems) > 0 {
@@ -289,11 +312,45 @@ func validateUpdate(where string, target Target, deployUser string, fail func(st
 			fail("%s: a docker update takes no unit or cmd", where)
 		}
 	case UpdateSelf:
-		// Meridian's own update is run by `meridian-host update`, not by this command path; the
-		// fields it needs arrive with that task (T35).
-		if target.Update.Unit != "" || len(target.Update.Cmd) != 0 {
-			fail("%s: a self update takes no unit or cmd", where)
+		if !target.ResultFirst {
+			fail("%s: a self update must set result_first, or the container dies before its result exists", where)
 		}
+		if target.Update.Unit != "" || len(target.Update.Cmd) != 0 || target.Update.RunAs != "" {
+			fail("%s: a self update takes no unit, cmd or run_as", where)
+		}
+		if _, err := wire.ParseImageRepo(target.Update.Image); err != nil {
+			fail("%s: self update image %q is not ghcr.io/<owner>/<name>", where, target.Update.Image)
+		}
+		if !isCleanAbs(target.Update.Dir) {
+			fail("%s: self update dir %q must be an absolute, clean path", where, target.Update.Dir)
+		}
+		if !containerNameGrammar.MatchString(target.Update.Service) {
+			fail("%s: self update service %q is not a container name", where, target.Update.Service)
+		}
+		if target.Update.Port < 1 || target.Update.Port > 65535 {
+			fail("%s: self update port %d is outside 1..65535", where, target.Update.Port)
+		}
+		if !isCleanAbs(target.Update.SignalFile) {
+			fail("%s: self update signal_file %q must be an absolute, clean path", where, target.Update.SignalFile)
+		}
+		return
+	}
+
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{"image", target.Update.Image},
+		{"dir", target.Update.Dir},
+		{"service", target.Update.Service},
+		{"signal_file", target.Update.SignalFile},
+	} {
+		if field.value != "" {
+			fail("%s: a %s update takes no %s", where, target.Update.Kind, field.name)
+		}
+	}
+	if target.Update.Port != 0 {
+		fail("%s: a %s update takes no port", where, target.Update.Kind)
 	}
 }
 
