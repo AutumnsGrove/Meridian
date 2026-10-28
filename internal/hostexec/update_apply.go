@@ -19,15 +19,15 @@ import (
 )
 
 // One self update's budgets. The executor's default action timeout is 600s and the control unit's
-// TimeoutStartSec is 660s, so the sum of a pull, a recreate, a health window and a rollback fits with
-// margin; a slow pull is the only step that can eat the whole budget.
+// TimeoutStartSec is 660s; 180 + 90 + 120 + 90 is 480, which leaves the rollback room inside the
+// executor's deadline even when every earlier step uses its whole budget.
 const (
-	pullTimeout          = 240 * time.Second
-	upTimeout            = 120 * time.Second
+	pullTimeout          = 180 * time.Second
+	upTimeout            = 90 * time.Second
 	healthWindow         = 120 * time.Second
 	healthInterval       = 2 * time.Second
 	healthRequestTimeout = 5 * time.Second
-	rollbackTimeout      = 120 * time.Second
+	rollbackTimeout      = 90 * time.Second
 	maxEnvSize           = 64 << 10
 )
 
@@ -110,7 +110,7 @@ func (updater *Updater) compose(ctx context.Context, timeout time.Duration, verb
 	actionCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	code, output, err := updater.Run(actionCtx, Command{
-		Argv: argv, RunAs: updater.DeployUser, Dir: settings.Dir, Timeout: timeout,
+		Argv: argv, RunAs: updater.DeployUser, Dir: settings.Dir, Timeout: timeout, NoNewGroup: true,
 	})
 	switch {
 	case err != nil:

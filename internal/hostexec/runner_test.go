@@ -57,6 +57,8 @@ func TestRunnerHelperProcess(t *testing.T) {
 			t.Fatalf("getwd: %v", err)
 		}
 		fmt.Println(where)
+	case "pgid":
+		fmt.Printf("pgid=%d\n", syscall.Getpgrp())
 	default:
 		t.Fatalf("the runner helper was called with no mode: %q", os.Args)
 	}
@@ -205,6 +207,34 @@ func TestRunner_KeepsTheTailAndLogsTheRest(t *testing.T) {
 	}
 	if len(logged) == 0 {
 		t.Error("nothing reached the journal, so a command's full output would be lost")
+	}
+}
+
+func TestRunner_NoNewGroupKeepsTheCallersGroup(t *testing.T) {
+	parse := func(output string) int {
+		t.Helper()
+		value := strings.TrimPrefix(firstLine(output), "pgid=")
+		pgid, err := strconv.Atoi(value)
+		if err != nil {
+			t.Fatalf("output = %q, want the helper's process group", output)
+		}
+		return pgid
+	}
+
+	_, output, err := runFor(t, hostexec.Command{Argv: helperArgv("pgid"), NoNewGroup: true}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("run the helper: %v", err)
+	}
+	if got, want := parse(output), syscall.Getpgrp(); got != want {
+		t.Errorf("NoNewGroup pgid = %d, want the caller's %d", got, want)
+	}
+
+	_, output, err = runFor(t, hostexec.Command{Argv: helperArgv("pgid")}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("run the helper: %v", err)
+	}
+	if got, want := parse(output), syscall.Getpgrp(); got == want {
+		t.Errorf("a normal command shares the caller's pgid %d; it needed its own group", want)
 	}
 }
 

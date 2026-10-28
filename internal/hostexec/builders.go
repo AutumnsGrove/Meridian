@@ -57,6 +57,9 @@ type Command struct {
 	ResultFirst bool
 	// Verify is the post-check for an action whose exit code does not prove it worked.
 	Verify *Verify
+	// NoNewGroup keeps the command in the caller's process group instead of starting its own. The
+	// self updater sets it so the executor's group kill reaches the docker commands it started.
+	NoNewGroup bool
 }
 
 // Verify is a post-check: run Argv until its output says Want. A unit that was told to start is only

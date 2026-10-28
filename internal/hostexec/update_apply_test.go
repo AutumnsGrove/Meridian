@@ -182,6 +182,9 @@ func TestUpdater_AppliesTheDigestAndRecreates(t *testing.T) {
 		if call.Timeout <= 0 {
 			t.Errorf("call %d has no timeout", index)
 		}
+		if !call.NoNewGroup {
+			t.Errorf("call %d would escape the executor's process-group kill", index)
+		}
 	}
 	info, err := os.Stat(filepath.Join(fixture.dir, ".env"))
 	if err != nil {

@@ -44,12 +44,22 @@ func Runner(logf func(string, ...any)) Commander {
 		process := exec.CommandContext(ctx, command.Argv[0], command.Argv[1:]...) //nolint:gosec // argv comes from the root-owned allowlist, never from a request
 		process.Dir = command.Dir
 		process.Env = []string{"PATH=" + commandPath, "HOME=" + home, "LANG=" + commandLang}
-		process.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Credential: credential}
+		process.SysProcAttr = &syscall.SysProcAttr{Credential: credential}
+		if !command.NoNewGroup {
+			process.SysProcAttr.Setpgid = true
+		}
 		process.WaitDelay = waitDelay
 		// Cancel is the whole point of the process group: an updater that spawned a build must not
-		// leave it running after the timeout took its parent.
-		process.Cancel = func() error {
-			return syscall.Kill(-process.Process.Pid, syscall.SIGKILL)
+		// leave it running after the timeout took its parent. A NoNewGroup command shares the caller's
+		// group, so killing that group here would kill the caller too; kill just this child.
+		if command.NoNewGroup {
+			process.Cancel = func() error {
+				return process.Process.Kill()
+			}
+		} else {
+			process.Cancel = func() error {
+				return syscall.Kill(-process.Process.Pid, syscall.SIGKILL)
+			}
 		}
 		captured := &tailBuffer{limit: maxCaptured, spill: logf}
 		process.Stdout = captured
