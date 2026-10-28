@@ -35,6 +35,9 @@ owner's to tick. What is on the box now, all of it reversible:
   T34/T35 is what pins it properly.
 - `https://lepotato.taild95077.ts.net:8891` via `tailscale serve --https=8891`
   (`sudo tailscale serve --https=8891 off` undoes it). 10 of 10 tiles up.
+- Ivy's tile links to `http://lepotato.taild95077.ts.net:8418`, not its IP. Port 8418 is Ivy's own
+  plain-HTTP listener, **not** a `tailscale serve` port: HTTPS there fails the TLS handshake, so the
+  tile has to say `http`. Its probes stay on localhost, which is the one Host header Ivy accepts.
 - `/etc/meridian/{meridian-host,host.json,targets.json,observe.json}` (bwmon only,
   `observe.json` = her-go.service + meridian-control.path) and `/etc/sudoers.d/meridian`, validated.
 - `meridian-probe.timer` and `meridian-control.path` are enabled. One bwmon restart was measured at
