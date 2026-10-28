@@ -29,19 +29,19 @@
       "actions": ["start", "stop", "restart"],
       "criticality": "low"
     },
-    "hub": {
+    "meridian": {
       "kind": "systemd",
-      "unit": "hub.service",
+      "unit": "meridian.service",
       "actions": ["start", "stop", "restart", "update"],
       "criticality": "high",
       "result_first": true,
       "update": {
         "kind": "self",
-        "image": "ghcr.io/owner/hub",
-        "dir": "/srv/hub",
-        "service": "hub",
+        "image": "ghcr.io/owner/meridian",
+        "dir": "/srv/meridian",
+        "service": "meridian",
         "port": 8891,
-        "signal_file": "/srv/hub/update-signal/requested"
+        "signal_file": "/srv/meridian/update-signal/requested"
       }
     },
     "host": {
