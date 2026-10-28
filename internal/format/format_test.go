@@ -114,6 +114,8 @@ func TestCompose_JoinsTheNonEmptyParts(t *testing.T) {
 	}
 }
 
+// FuzzBytes holds the formatter to a round trip: whatever value, unit and precision arrive, an output
+// it produces parses back to that value within the rounding its own rules allow.
 func FuzzBytes(f *testing.F) {
 	for _, seed := range []struct {
 		value    float64

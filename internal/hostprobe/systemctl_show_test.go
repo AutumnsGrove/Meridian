@@ -106,6 +106,8 @@ func TestParseSystemctlShow_RefusesOutputWithoutAState(t *testing.T) {
 	}
 }
 
+// FuzzParseSystemctlShow checks the parser against a deliberately dumb reference: the last
+// ActiveState line wins, an absent or empty one means no state, and Active means exactly "active".
 func FuzzParseSystemctlShow(f *testing.F) {
 	f.Add([]byte(activeShow))
 	f.Add([]byte(inactiveShow))

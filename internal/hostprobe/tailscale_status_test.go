@@ -81,6 +81,8 @@ func TestParseTailscaleStatus_RefusesWhatIsNotAStatus(t *testing.T) {
 	}
 }
 
+// FuzzParseTailscaleStatus holds the parser to the shape of its own type: never a panic, and a state
+// it accepts has no negative counts and never reports more online peers than it counted.
 func FuzzParseTailscaleStatus(f *testing.F) {
 	f.Add([]byte(`{"Self":{"Online":true,"ExitNodeOption":true},"Peer":{"a":{"Online":true}}}`))
 	f.Add([]byte(`{"Self":{"Online":false}}`))

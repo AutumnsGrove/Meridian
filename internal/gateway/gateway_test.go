@@ -563,6 +563,8 @@ func splitEntries(entries string) []string {
 	return fields
 }
 
+// FuzzHostCheck is the browser guard's rule, checked against a deliberately dumb reference: a
+// loopback Host is always accepted, and anything else only when an allowlist entry justifies it.
 func FuzzHostCheck(f *testing.F) {
 	f.Add("localhost:8891", "hub.example.org")
 	f.Add("evil.example.org", "hub.example.org,withport.example.org:8891")

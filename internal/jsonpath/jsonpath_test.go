@@ -212,6 +212,8 @@ func TestElements_ReturnsArraysOnly(t *testing.T) {
 	}
 }
 
+// FuzzGet holds the lookup to JSON's own value set: whatever document decodes, a found value is one
+// of the types JSON can produce, and a miss says so instead of inventing a zero value.
 func FuzzGet(f *testing.F) {
 	for _, seed := range []string{
 		`{"a": {"b": [1, 2, {"c": true}]}}`,
@@ -244,6 +246,8 @@ func FuzzGet(f *testing.F) {
 	})
 }
 
+// FuzzEqual holds the comparison to the properties a probe rule relies on: symmetry for any pair of
+// decoded documents, and reflexivity for the scalars it is documented to compare.
 func FuzzEqual(f *testing.F) {
 	for _, seed := range [][2]string{
 		{"1", "1.0"}, {`"1"`, "1"}, {"true", `"true"`}, {"null", "null"}, {"0", "0.0"}, {"[1]", "[1]"},
@@ -270,6 +274,8 @@ func FuzzEqual(f *testing.F) {
 	})
 }
 
+// FuzzNumber holds the numeric coercion to a finite result: whatever decodes, a number it reports is
+// never NaN or an infinity.
 func FuzzNumber(f *testing.F) {
 	for _, seed := range []string{"0", "-0", "1", "1.5", "1e309", "-1e309", `"1"`, "true", "{}", "null"} {
 		f.Add(seed)

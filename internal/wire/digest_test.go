@@ -140,6 +140,8 @@ func TestImageRepo_ZeroValueIsInvalid(t *testing.T) {
 	}
 }
 
+// FuzzParseDigest is the digest grammar the update path pins: an accepted value is `sha256:` plus 64
+// lowercase hex characters, and it renders back byte for byte.
 func FuzzParseDigest(f *testing.F) {
 	f.Add(validDigest)
 	f.Add("")
@@ -172,6 +174,8 @@ func FuzzParseDigest(f *testing.F) {
 	})
 }
 
+// FuzzParseImageRepo is the repository grammar the update path trusts: an accepted value is exactly
+// `ghcr.io/<owner>/<name>` with no tag, digest or extra slash, and it renders back byte for byte.
 func FuzzParseImageRepo(f *testing.F) {
 	f.Add(validRepo)
 	f.Add("")

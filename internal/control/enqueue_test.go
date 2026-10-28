@@ -448,8 +448,9 @@ func mustRemoveAll(t *testing.T, path string) {
 	}
 }
 
-// FuzzEnqueueInput proves the fuzz target's two properties: whatever the browser sends, an accepted
-// request is one the executor will validate, and nothing is ever written outside the inbox.
+// FuzzEnqueueInput holds the two properties the container's side of the boundary needs: whatever
+// the browser sends, an accepted request is one the executor will validate, and nothing is ever
+// written outside the inbox.
 func FuzzEnqueueInput(f *testing.F) {
 	f.Add("restart", "bwmon", "", "")
 	f.Add("stop", "resolver", "dns-stop-confirmed", "")

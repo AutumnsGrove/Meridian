@@ -181,6 +181,8 @@ func TestReadUpdateSignal_RefusesSymlinksDirectoriesAndOversizedFiles(t *testing
 	}
 }
 
+// FuzzSetVar treats the .env file and the new value as untrusted: an accepted rewrite holds exactly
+// one assignment of the key and cannot smuggle a newline into the key or the value.
 func FuzzSetVar(f *testing.F) {
 	f.Add("# comment\nA=1\nMERIDIAN_IMAGE=old\n", "MERIDIAN_IMAGE", "new")
 	f.Add("", "MERIDIAN_IMAGE", "new")
@@ -215,6 +217,8 @@ func FuzzSetVar(f *testing.F) {
 	})
 }
 
+// FuzzImageRef treats the update signal as untrusted: what it accepts is always the allowlisted
+// repository pinned to a digest its own validator accepts, and anything else is the typed error.
 func FuzzImageRef(f *testing.F) {
 	repo := wire.ImageRepo(image)
 	f.Add(digestA)

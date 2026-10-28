@@ -402,6 +402,9 @@ func sameRequest(left, right wire.Request) bool {
 		left.RequestedAt.Equal(right.RequestedAt)
 }
 
+// FuzzDecodeRequest holds the request reader to three properties: a decode failure wraps the one
+// sentinel, a decoded request always gets a verdict (a refusal from the closed table, never a panic),
+// and re-encoding round-trips to the same value with the same verdict.
 func FuzzDecodeRequest(f *testing.F) {
 	f.Add([]byte(`{"id":"` + restartID + `","action":"restart","target":"bwmon","requested_at":"` + requestAt + `"}`))
 	f.Add([]byte(`{"id":"` + restartID + `","action":"stop","target":"resolver","ack":"dns-stop-confirmed","requested_at":"` + requestAt + `"}`))
@@ -454,6 +457,8 @@ func FuzzDecodeRequest(f *testing.F) {
 	})
 }
 
+// FuzzDecodeResult holds the result reader to two properties: a decode failure wraps the one
+// sentinel, and whatever decodes round-trips through its own encoding field for field.
 func FuzzDecodeResult(f *testing.F) {
 	f.Add([]byte(`{"id":"` + restartID + `","action":"restart","target":"bwmon","ok":true,"code":"","exit_code":0,` +
 		`"started_at":"` + requestAt + `","finished_at":"` + requestAt + `","duration_ms":1,"output":"done","note":""}`))

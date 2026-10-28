@@ -481,6 +481,8 @@ func TestRequest_RejectsAnInvalidDigestAndAMissingDirectory(t *testing.T) {
 	}
 }
 
+// FuzzManifestHeader treats the registry's response header as untrusted: the value is either the
+// typed digest error or a digest that passes the same validator the update path uses.
 func FuzzManifestHeader(f *testing.F) {
 	f.Add(newestDigest.String())
 	f.Add("")

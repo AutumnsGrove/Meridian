@@ -395,6 +395,9 @@ func twinInput(in hostexec.BuildInput) hostexec.BuildInput {
 	return other
 }
 
+// FuzzBuildArgv is the executor's argv-accounting property: every element of a built command comes
+// from the allowlist, the request id or the ref, no element is a flag the table does not define, and
+// every command carries a positive timeout.
 func FuzzBuildArgv(f *testing.F) {
 	f.Add("systemd", "restart", "worker.service", "", "", "", "unit", "worker-update.service", "", builderID, "")
 	f.Add("compose", "update", "", "/srv/stack", "web", "", "docker", "", "", builderID, "")

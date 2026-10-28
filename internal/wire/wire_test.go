@@ -249,6 +249,8 @@ func TestParseID_AcceptsOnlyCanonicalLowercaseUUIDs(t *testing.T) {
 	}
 }
 
+// FuzzParseHostSnapshot holds the snapshot parser to its contract: never a panic, and an accepted
+// snapshot has a timestamp and survives a marshal of its own fields.
 func FuzzParseHostSnapshot(f *testing.F) {
 	f.Add([]byte(exampleSnapshot))
 	f.Add([]byte(`{"at":"2026-10-23T18:04:11Z"}`))
@@ -271,6 +273,8 @@ func FuzzParseHostSnapshot(f *testing.F) {
 	})
 }
 
+// FuzzParseID is the id grammar the executor joins into file names: an accepted id comes back as the
+// same 36-character lowercase string, with a hyphen in the four canonical places and nothing else.
 func FuzzParseID(f *testing.F) {
 	f.Add("01234567-89ab-7000-8000-000000000000")
 	f.Add("00000000-0000-4000-8000-000000000000")
