@@ -28,4 +28,19 @@ Rules for the agent:
 
 ## Open
 
-_None yet._
+### Q1: the allowlist hint names a `meridian-host targets` command that does not exist
+
+- **Blocks:** nothing; found while writing the review brief.
+- **Asked:** 2026-10-28
+- **Context:** decision #68 says `meridian doctor` reads the allowlist from stdin because
+  `/etc/meridian` is never mounted, and gives `meridian-host targets | docker exec -i meridian
+  meridian doctor --allowlist -` as the way to do it. `meridian-host` has no `targets` subcommand
+  (`cmd/meridian-host/main.go` dispatches only `probe`, `exec`, `update`, `render-units`), and the two
+  hints in `internal/doctor/doctor.go` repeat the spelling, so anyone following the advice gets
+  `unknown command`.
+- **Options:** A. keep the working form `cat /etc/meridian/targets.json | docker exec -i meridian
+  meridian doctor --allowlist -` and let the maintenance pass append a note amending #68's spelling.
+  B. add a `targets` subcommand that copies the allowlist to stdout.
+- **Recommendation:** A. Reading a root-owned file the deploy user can already read needs no new
+  surface on the privileged binary, and `cat` cannot grow a flag. B is a convenience worth adding
+  only if the file ever stops being readable by the deploy user.
