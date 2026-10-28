@@ -99,6 +99,17 @@ func (exec *executor) handle(ctx context.Context, queue, name string) {
 		return
 	}
 
+	// Hold a normal action for the same time the result will claim, so the page's in-flight state is
+	// observable for a whole poll interval. Without the hold the result can land before the browser
+	// has painted the busy label, which is a race in the fixture rather than in the page.
+	if request.Action != wire.ActionReboot {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(executorWork):
+		}
+	}
+
 	if request.Action == wire.ActionReboot {
 		// A reboot is the one action whose result must exist before it happens: the container would be
 		// gone. The page uses the provisional result to show its banner.
