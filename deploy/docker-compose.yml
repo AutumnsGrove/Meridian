@@ -41,3 +41,6 @@ services:
       # the executor writes and this container reads read-only.
       - ./control/inbox:/control/inbox
       - ./control/outbox:/control/outbox:ro
+      # The self-update hint: the container writes the resolved digest here, the host re-validates it
+      # against its own allowlist before pulling anything (decisions #20, #52).
+      - ./update-signal:/update-signal

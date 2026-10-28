@@ -21,10 +21,11 @@ var composeVolumes = []string{
 	"control/outbox:/control/outbox:ro",
 }
 
-// composeWritable is the one mount the container may write to: queued requests, nothing else. It is
-// how a tap leaves the container at all (decision #63).
+// composeWritable is what the container may write to: queued requests, and the self-update hint the
+// host re-validates before acting on it (decisions #20, #63). Nothing else is writable.
 var composeWritable = []string{
 	"control/inbox:/control/inbox",
+	"update-signal:/update-signal",
 }
 
 // composeService is only the fields the invariants look at. A field that is not here is not checked
