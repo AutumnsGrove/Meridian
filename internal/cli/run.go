@@ -19,6 +19,8 @@ import (
 	"github.com/autumnsgrove/meridian/internal/control"
 	"github.com/autumnsgrove/meridian/internal/gateway"
 	"github.com/autumnsgrove/meridian/internal/probe"
+	"github.com/autumnsgrove/meridian/internal/updater"
+	"github.com/autumnsgrove/meridian/internal/wire"
 )
 
 const (
@@ -59,10 +61,14 @@ func Run(ctx context.Context, opts RunOptions, signals <-chan os.Signal, logger 
 	host := newHostReader()
 	host.SetPath(hostPath(cfg))
 
+	// One HTTP client for probes and the self-update check: no redirects, no cookie jar, every body
+	// capped (STANDARDS section 4).
+	fetch := probe.NewHTTPFetcher(os.Getenv, probeUserAgent, maxProbeBody)
+
 	store := &probe.Store{}
 	scheduler := probe.NewScheduler(
 		probe.Env{
-			Fetch:   probe.NewHTTPFetcher(os.Getenv, probeUserAgent, maxProbeBody),
+			Fetch:   fetch,
 			Resolve: probe.NewDNSResolver(),
 			Host:    host.Read,
 			Now:     time.Now,
@@ -98,6 +104,23 @@ func Run(ctx context.Context, opts RunOptions, signals <-chan os.Signal, logger 
 			},
 			Host: host.Read,
 			Now:  time.Now,
+		},
+		// The read-only self-update check. The running digest comes from the image reference the
+		// deployment started, which compose passes through .env; a build without one still reports
+		// the newest digest and compares commits instead.
+		Update: func(ctx context.Context, settings *config.Update) (updater.Resolution, error) {
+			running := updater.Running{Commit: commit}
+			if image := os.Getenv("MERIDIAN_IMAGE"); image != "" {
+				if at := strings.LastIndex(image, "@"); at >= 0 {
+					if digest, err := wire.ParseDigest(image[at+1:]); err == nil {
+						running.Digest = digest
+					}
+				}
+			}
+			return updater.Resolve(ctx, fetch, updater.Source{
+				Repo:       wire.ImageRepo(settings.Image),
+				PublishURL: settings.PublishURL,
+			}, running, updater.Clock{Now: time.Now})
 		},
 	}
 

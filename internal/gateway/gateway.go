@@ -16,6 +16,7 @@ import (
 	"github.com/autumnsgrove/meridian/internal/config"
 	"github.com/autumnsgrove/meridian/internal/control"
 	"github.com/autumnsgrove/meridian/internal/probe"
+	"github.com/autumnsgrove/meridian/internal/updater"
 	"github.com/autumnsgrove/meridian/internal/wire"
 )
 
@@ -64,6 +65,9 @@ type Deps struct {
 	// Control is the container side of the control plane. A nil Control means this box has none, which
 	// is every Phase 1 deployment: /api/control answers 503 and /api/status says so.
 	Control *control.Plane
+	// Update resolves the newest published digest for /api/update. A nil Update means this build
+	// cannot check; a config without an update block answers "not configured" without calling it.
+	Update func(ctx context.Context, settings *config.Update) (updater.Resolution, error)
 	// Now is the clock that stamps the response. Nil means the wall clock.
 	Now func() time.Time
 }
@@ -82,6 +86,7 @@ func Routes(deps Deps) []Route {
 		{Pattern: "GET /api/status", Handler: status(deps)},
 		{Pattern: "POST /api/control", Handler: enqueue(deps)},
 		{Pattern: "GET /api/control/status", Handler: controlStatus(deps)},
+		{Pattern: "GET /api/update", Handler: updateStatus(deps)},
 		{Pattern: "GET /icons/{file}", Handler: icons(deps)},
 		{Pattern: "/", Handler: static(deps)},
 	}
