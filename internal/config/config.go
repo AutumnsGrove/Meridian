@@ -18,6 +18,7 @@ type Config struct {
 	HostStatus *HostStatus     `yaml:"host_status"`
 	Search     Search          `yaml:"search"`
 	Control    ControlSettings `yaml:"control"`
+	Update     *Update         `yaml:"update"`
 	Services   []Service       `yaml:"services"`
 }
 
@@ -68,6 +69,19 @@ type ControlSettings struct {
 	AuditRetention Duration `yaml:"audit_retention"`
 	InboxDir       string   `yaml:"inbox_dir"`
 	OutboxDir      string   `yaml:"outbox_dir"`
+}
+
+// Update configures self-update (decision #20). The image is a repository, never a tag: the digest is
+// resolved from the registry and pinned by the host. The publish URL is the repository's own status
+// endpoint, so no GitHub hostname is baked into the code (decision #38 applies to infrastructure too).
+type Update struct {
+	// Image is the GHCR repository this build publishes to, "ghcr.io/<owner>/<name>".
+	Image string `yaml:"image"`
+	// PublishURL is the status endpoint that names the newest commit and whether its build is
+	// running. It is read to wait out an in-flight CI build before resolving a digest.
+	PublishURL string `yaml:"publish_url"`
+	// SignalDir is the container path of the writable self-update handoff directory.
+	SignalDir string `yaml:"signal_dir"`
 }
 
 // Service is one tile and everything behind it.

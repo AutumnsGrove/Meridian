@@ -92,6 +92,40 @@ func TestParse_AppliesDefaults(t *testing.T) {
 	}
 }
 
+func TestParse_DefaultsTheUpdateSignalDirectory(t *testing.T) {
+	document := substitute(t, minimal, "listen: 127.0.0.1:8891",
+		"listen: 127.0.0.1:8891\nupdate: {image: ghcr.io/owner/name, publish_url: \"https://api.example.org/runs\"}")
+	parsed, _ := parse(t, document)
+	if parsed.Update == nil {
+		t.Fatal("update = nil, want the block")
+	}
+	if got, want := parsed.Update.SignalDir, "/update-signal"; got != want {
+		t.Errorf("update.signal_dir = %q, want %q", got, want)
+	}
+	if got, want := parsed.Update.Image, "ghcr.io/owner/name"; got != want {
+		t.Errorf("update.image = %q, want %q", got, want)
+	}
+	if got, want := parsed.Update.PublishURL, "https://api.example.org/runs"; got != want {
+		t.Errorf("update.publish_url = %q, want %q", got, want)
+	}
+}
+
+func TestParse_KeepsTheUpdateSignalDirectoryWhenWritten(t *testing.T) {
+	document := substitute(t, minimal, "listen: 127.0.0.1:8891",
+		"listen: 127.0.0.1:8891\nupdate: {image: ghcr.io/owner/name, publish_url: \"https://api.example.org/runs\", signal_dir: /var/run/update}")
+	parsed, _ := parse(t, document)
+	if got, want := parsed.Update.SignalDir, "/var/run/update"; got != want {
+		t.Errorf("update.signal_dir = %q, want %q", got, want)
+	}
+}
+
+func TestParse_LeavesUpdateNilWhenTheBlockIsAbsent(t *testing.T) {
+	parsed, _ := parse(t, minimal)
+	if parsed.Update != nil {
+		t.Errorf("update = %+v, want nil", parsed.Update)
+	}
+}
+
 func TestParse_KeepsExplicitValuesOverDefaults(t *testing.T) {
 	document := substitute(t, minimal, "listen: 127.0.0.1:8891",
 		"listen: 127.0.0.1:8891\npoll: {interval: 30s, timeout: 2s}")
@@ -268,4 +302,19 @@ func FuzzParse(f *testing.F) {
 			t.Fatalf("validating a loaded config found problems: %v", problems)
 		}
 	})
+}
+
+// The shipped configs are the product for anyone else, so they are held to the same validation as a
+// user's file. The template is a complete config; the worked example is the homelab's own.
+func TestLoad_TheShippedExamplesValidate(t *testing.T) {
+	for _, path := range []string{
+		filepath.Join("..", "..", "config.yaml.example"),
+		filepath.Join("..", "..", "examples", "homelab.yaml"),
+	} {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			if _, _, err := config.Load(path); err != nil {
+				t.Fatalf("Load(%s): %v", path, err)
+			}
+		})
+	}
 }

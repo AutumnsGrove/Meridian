@@ -48,6 +48,14 @@ control:
   inbox_dir: /control/inbox
   outbox_dir: /control/outbox
 
+# Self-update: the container resolves the newest digest from GHCR and leaves it in update-signal/
+# for meridian-host to pull. The publish URL is this repo's own release workflow, which is how a tap
+# right after `git push` waits for the build instead of grabbing the previous image.
+update:
+  image: ghcr.io/autumnsgrove/meridian
+  publish_url: "https://api.github.com/repos/autumnsgrove/meridian/actions/workflows/release.yml/runs?branch=main&per_page=1"
+  signal_dir: /update-signal
+
 services:
   # ── everyday ─────────────────────────────────────────────────────────────────────────────
   - id: polaris

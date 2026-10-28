@@ -290,6 +290,30 @@ func brokenConfigs(t *testing.T) []brokenConfig {
 			code:     config.CodeControlAuditRetentionRange,
 		},
 		{
+			name:     "update image with a tag",
+			document: substitute(t, minimal, "listen: 127.0.0.1:8891", "listen: 127.0.0.1:8891\nupdate: {image: \"ghcr.io/owner/name:latest\", publish_url: \"https://api.example.org/runs\"}"),
+			path:     "update.image",
+			code:     config.CodeUpdateImage,
+		},
+		{
+			name:     "update image at another registry",
+			document: substitute(t, minimal, "listen: 127.0.0.1:8891", "listen: 127.0.0.1:8891\nupdate: {image: docker.io/owner/name, publish_url: \"https://api.example.org/runs\"}"),
+			path:     "update.image",
+			code:     config.CodeUpdateImage,
+		},
+		{
+			name:     "update publish url with the wrong scheme",
+			document: substitute(t, minimal, "listen: 127.0.0.1:8891", "listen: 127.0.0.1:8891\nupdate: {image: ghcr.io/owner/name, publish_url: \"ftp://api.example.org/runs\"}"),
+			path:     "update.publish_url",
+			code:     config.CodeUpdatePublishURL,
+		},
+		{
+			name:     "update signal directory is relative",
+			document: substitute(t, minimal, "listen: 127.0.0.1:8891", "listen: 127.0.0.1:8891\nupdate: {image: ghcr.io/owner/name, publish_url: \"https://api.example.org/runs\", signal_dir: update}"),
+			path:     "update.signal_dir",
+			code:     config.CodeUpdateSignalDir,
+		},
+		{
 			name:     "host status without a file",
 			document: substitute(t, minimal, "listen: 127.0.0.1:8891", "listen: 127.0.0.1:8891\nhost_status: {max_age: 1m}"),
 			path:     "host_status.file",

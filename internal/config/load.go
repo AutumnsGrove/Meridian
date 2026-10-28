@@ -54,6 +54,9 @@ const (
 	CodeControlActionsInvalid      Code = "control_actions_invalid"
 	CodeControlDNSWithoutStop      Code = "control_dns_without_stop"
 	CodeControlUpdateConflict      Code = "control_update_conflict"
+	CodeUpdateImage                Code = "update_image_invalid"
+	CodeUpdatePublishURL           Code = "update_publish_url_invalid"
+	CodeUpdateSignalDir            Code = "update_signal_dir_invalid"
 	CodeProbeKindMissing           Code = "probe_kind_missing"
 	CodeProbeKindUnknown           Code = "probe_kind_unknown"
 	CodeProbeKeyMissing            Code = "probe_key_missing"
@@ -196,5 +199,8 @@ func applyDefaults(parsed *Config) {
 	}
 	if parsed.HostStatus != nil && parsed.HostStatus.MaxAge == 0 {
 		parsed.HostStatus.MaxAge = Duration(90 * time.Second)
+	}
+	if parsed.Update != nil && parsed.Update.SignalDir == "" {
+		parsed.Update.SignalDir = "/update-signal"
 	}
 }

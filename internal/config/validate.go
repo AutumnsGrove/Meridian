@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	pathpkg "path"
 	"regexp"
 	"sort"
 	"strconv"
@@ -41,6 +42,7 @@ func Validate(parsed *Config) (Problems, []Warning) {
 	validator.validateHostStatus(parsed)
 	validator.validateSearch(parsed)
 	validator.validateControlSettings(parsed)
+	validator.validateUpdate(parsed)
 	validator.validateServices(parsed)
 	return validator.problems, validator.warnings
 }
@@ -179,6 +181,24 @@ func (validator *validator) validateControlSettings(parsed *Config) {
 	}
 	if strings.TrimSpace(control.OutboxDir) == "" {
 		validator.fail("control.outbox_dir", CodeControlTargetInvalid, "outbox_dir must not be empty")
+	}
+}
+
+func (validator *validator) validateUpdate(parsed *Config) {
+	if parsed.Update == nil {
+		return
+	}
+	if _, err := wire.ParseImageRepo(parsed.Update.Image); err != nil {
+		validator.fail("update.image", CodeUpdateImage,
+			"%q is not a ghcr.io/<owner>/<name> repository: a tag or digest never goes here", parsed.Update.Image)
+	}
+	if !validHTTPURL(parsed.Update.PublishURL) {
+		validator.fail("update.publish_url", CodeUpdatePublishURL,
+			"publish_url must be the repository's http or https status endpoint")
+	}
+	if !pathpkg.IsAbs(parsed.Update.SignalDir) || pathpkg.Clean(parsed.Update.SignalDir) != parsed.Update.SignalDir {
+		validator.fail("update.signal_dir", CodeUpdateSignalDir,
+			"signal_dir must be an absolute, clean container path like /update-signal")
 	}
 }
 
