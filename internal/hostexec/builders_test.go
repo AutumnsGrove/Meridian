@@ -24,7 +24,8 @@ var fixedTokens = map[string]bool{
 	"docker": true, "compose": true, "--project-directory": true, "up": true, "-d": true,
 	"--pull": true, "always": true, "container": true,
 	"systemd-run": true, "--on-active=10": true, "--on-active=10min": true, "-p": true,
-	"reboot": true,
+	"reboot":                      true,
+	"/etc/meridian/meridian-host": true, "update": true,
 }
 
 func systemdTarget() hostexec.Target {
@@ -61,6 +62,18 @@ func containerTarget() hostexec.Target {
 		Criticality: hostexec.CriticalityLow,
 		Update: &hostexec.Update{
 			Kind: hostexec.UpdateCommand, Cmd: []string{"/home/deploy/app/app", "update"}, RunAs: deployUser,
+		},
+	}
+}
+
+func selfTarget() hostexec.Target {
+	return hostexec.Target{
+		Kind: hostexec.KindSystemd, Unit: "meridian.service", ResultFirst: true,
+		Actions:     []string{"restart", "update"},
+		Criticality: hostexec.CriticalityHigh,
+		Update: &hostexec.Update{
+			Kind: hostexec.UpdateSelf, Image: "ghcr.io/owner/meridian", Dir: "/srv/meridian",
+			Service: "meridian", Port: 8891, SignalFile: "/srv/meridian/update-signal/requested",
 		},
 	}
 }
@@ -191,6 +204,16 @@ func buildCases() []buildCase {
 				RunAs:   deployUser,
 				Dir:     "/srv/stack",
 				Timeout: 600 * time.Second,
+			},
+		},
+		{
+			name: "self update runs the host binary as the deploy user",
+			in:   hostexec.BuildInput{Target: selfTarget(), Action: wire.ActionUpdate, ID: builderID, DeployUser: deployUser},
+			want: hostexec.Command{
+				Argv:        []string{"/etc/meridian/meridian-host", "update"},
+				RunAs:       deployUser,
+				Timeout:     600 * time.Second,
+				ResultFirst: true,
 			},
 		},
 		{

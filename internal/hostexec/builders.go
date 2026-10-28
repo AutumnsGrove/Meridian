@@ -32,6 +32,10 @@ const (
 	// autorestoreUnitPrefix and rebootUnitPrefix name the transient units the executor schedules.
 	autorestoreUnitPrefix = "meridian-autorestore-"
 	rebootUnitPrefix      = "meridian-reboot-"
+
+	// SelfUpdateBinary is where the installer puts the host binary (decision #67). The self update
+	// re-executes it, as the deploy user, so the compose commands run in the docker group.
+	SelfUpdateBinary = "/etc/meridian/meridian-host"
 )
 
 // ErrNoCommand means the allowlist offers something the table cannot build. That is an implementation
@@ -107,6 +111,7 @@ var updateBuilders = map[string]Builder{
 	UpdateUnit:    updateByUnit,
 	UpdateCommand: updateByCommand,
 	UpdateDocker:  updateByDocker,
+	UpdateSelf:    updateBySelf,
 }
 
 // Build returns the command for one allowlisted action, or ErrNoCommand.
@@ -231,6 +236,18 @@ func updateByDocker(in BuildInput) (Command, error) {
 		},
 		RunAs:       in.DeployUser,
 		Dir:         in.Target.Dir,
+		Timeout:     updateTimeout(in.Target),
+		ResultFirst: in.Target.ResultFirst,
+	}, nil
+}
+
+// updateBySelf re-executes the host binary as the deploy user. That command owns the pin, pull,
+// recreate, health poll and rollback (T35); the executor owns the result, so this row is one command
+// with one deadline like every other.
+func updateBySelf(in BuildInput) (Command, error) {
+	return Command{
+		Argv:        []string{SelfUpdateBinary, "update"},
+		RunAs:       in.DeployUser,
 		Timeout:     updateTimeout(in.Target),
 		ResultFirst: in.Target.ResultFirst,
 	}, nil
