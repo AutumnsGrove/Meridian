@@ -357,7 +357,11 @@ func TestScheduler_RefreshIsRateLimited(t *testing.T) {
 		t.Fatal("the first refresh was refused")
 	}
 	eventually(t, "the refreshed poll", func() bool { return service.hits.Load() == 2 })
-	eventually(t, "the poller to park again", func() bool { return clock.waiting() == 1 })
+	// A nudge wakes the loop from its timer without cancelling it, so the abandoned timer stays
+	// registered and the re-parked poller adds a second one. Waiting for the count to go back to 1
+	// is a race the poller wins whenever it re-parks first; the second registration is the only
+	// evidence that the pass finished and the loop is parked again.
+	eventually(t, "the poller to park again", func() bool { return clock.waiting() == 2 })
 
 	if scheduler.Refresh(ctx) {
 		t.Fatal("a refresh inside refresh_min started another pass")
