@@ -17,8 +17,11 @@ User=@DEPLOY_USER@
 ExecStart=/etc/meridian/meridian-host probe --out @STATUS_DIR@/host.json
 
 # The probe only ever writes host.json, and it reads nothing outside /proc, /run and /etc/meridian.
+# ProtectHome is read-only rather than yes: the status directory lives under the deploy user's home on
+# the box this ships to, and `ProtectHome=yes` makes all of /home inaccessible, which ReadWritePaths
+# cannot undo. The first real install failed exactly that way.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=yes
+ProtectHome=read-only
 ReadWritePaths=@STATUS_DIR@

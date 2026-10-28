@@ -294,6 +294,19 @@ accidental. The log is append-only and never rewritten by the container.
 cheap and never in the hot path of the action itself). The container's read-only view filters to the
 same window, so the page cannot show a row the file is about to lose.
 
+## Measured on the box
+
+Phase 2, 2026-10-28, `lepotato` (aarch64, systemd 257, Docker 29.6):
+
+- `restart bwmon` from the container's `POST /api/control` to the result file being readable by the
+  page: **831 ms**, of which the executor spent **165 ms** in `systemctl restart bwmon.service` and
+  its `is-active` post-check. The rest is the `.path` unit starting the oneshot and the page's own
+  1s poll.
+- With `meridian-control.path` stopped, `/api/control/status` reports `executor.state: missing` within
+  one probe tick (30s), which is what renders the "No executor" banner.
+- The container sees `control/inbox` writable and `control/outbox`, `config.yaml`, `icons` and
+  `status` read-only, with host networking, a read-only root filesystem and uid 1000.
+
 ## Concurrency, limits, timeouts
 
 - One action at a time, globally. `control.sh` takes `flock -n` and exits immediately if another run

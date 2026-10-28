@@ -58,6 +58,11 @@ func TestDeploy_TheControlUnitsSayExactlyWhatTheDesignSays(t *testing.T) {
 		// Larger than the executor's own 600s ceiling: systemd must be the last to give up, or a
 		// healthy run dies mid-action and the request is never answered.
 		{"meridian-control.service", "Service.TimeoutStartSec", "660"},
+		// ProtectHome=yes would make the status directory under /home unreachable and the probe would
+		// fail on its very first write, which is what the first real install did.
+		{"meridian-probe.service", "Service.ProtectHome", "read-only"},
+		{"meridian-probe.service", "Service.ReadWritePaths", "@STATUS_DIR@"},
+		{"meridian-probe.service", "Service.User", "@DEPLOY_USER@"},
 	}
 	for _, test := range tests {
 		t.Run(test.file+" "+test.key, func(t *testing.T) {
