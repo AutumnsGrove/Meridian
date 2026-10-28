@@ -1,7 +1,7 @@
-# Meridian configuration template — DRAFT
+# Meridian configuration template
 #
-# Nothing parses this file yet (Phase 0 is plans only). It exists to argue about the shape before any
-# Go struct is written. See docs/ARCHITECTURE.md for the design.
+# This is what a config looks like; `internal/config` parses it strictly, and a test loads this file
+# so it cannot drift from the schema. See docs/ARCHITECTURE.md for the design.
 #
 # This file is a TEMPLATE for anyone: every host, port and service name below is a placeholder.
 # The homelab this project was built for has its own worked example in examples/homelab.yaml.

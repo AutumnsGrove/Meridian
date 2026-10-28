@@ -39,9 +39,10 @@ export type ControlTap = {
 const UNREACHABLE = 'The hub did not answer. Check the connection and try again.';
 
 /**
- * Queues one tap and returns at once: the answer is the request id, and the page follows the result
- * through the status route. A refusal comes back in the container's own words (decision #86), so the
- * page never keeps a copy of the code table.
+ * Queues one tap: the answer is the request id, and the page follows the result through the status
+ * route. A self-update resolves its digest first, so that one tap may take longer than the rest; a
+ * refusal comes back in the container's own words (decision #86), so the page never keeps a copy of
+ * the code table.
  */
 export async function postControl(tap: ControlTap): Promise<ControlTapOutcome> {
 	try {

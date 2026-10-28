@@ -12,7 +12,7 @@ or `/etc/meridian`.
 > and the executor prunes both. Self-update is the `meridian-host update` subcommand. Where the
 > prose below says `control/queue`, `control/queue-tmp`, `control/results` or `control/audit.jsonl`,
 > read `control/inbox/queue`, `control/inbox/tmp`, `control/outbox/results` and
-> `control/outbox/audit.jsonl`. The build-out task docs in `docs/agent/06-control.md` are the
+> `control/outbox/audit.jsonl`; `update/requested` is `update-signal/requested`. The build-out task docs in `docs/agent/06-control.md` are the
 > detailed specification of the implementation. The container serves two routes: `POST /api/control`
 > writes one request, and `GET /api/control/status` reads the queue, the recent results, the audit
 > tail and any running auto-restore. Nothing polls an individual result file; the page polls that
@@ -269,10 +269,13 @@ it. Same reconnect path as the reboot, so it gets tested for free.
 
 Self-update follows Ivy's hardening, not a loose version of it:
 
-- the container resolves the latest GHCR digest and waits out an in-flight CI build before writing
-  `update/requested` (Polaris's behaviour, so a tap right after `git push` cannot grab a stale build)
-- `update.sh` refuses any image reference that is not exactly
-  `ghcr.io/autumnsgrove/meridian@sha256:…`
+- the update tap resolves the latest GHCR digest and waits out an in-flight CI build before writing
+  `update-signal/requested` (Polaris's behaviour, so a tap right after `git push` cannot grab a stale
+  build). The target is `update.target` in `config.yaml`, and the hint is written before the control
+  request is queued (decision #87)
+- `meridian-host update` refuses any image reference that is not exactly the allowlisted repository
+  plus `@sha256:` and 64 lowercase hex characters. The container's file is a hint; the host's
+  allowlist is the rule
 - it pins the digest in `.env`, pulls, recreates, then polls `/healthz` for up to 120s
 - if the new container is not healthy, the previous digest goes back and the result says `failed`
 
