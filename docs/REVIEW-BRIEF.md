@@ -181,8 +181,8 @@ uncommented fails `scripts/check --fast` until you do. Edit the code, never the 
 
 Timings and where the runs happen:
 
-- **Local full check:** `scripts/check all` runs each target for 5s (the default `FUZZ_TIME`), so the
-  fuzz step dominates a four-to-six-minute run.
+- **Local full check:** `scripts/check all` runs each target for 5s (the default `FUZZ_TIME`), about
+  3.5 of the run's ~7 minutes on the machine that wrote this (see the baseline below).
 - **CI on a push:** the `fuzz-smoke` job sets `FUZZ_TIME: 20s`
   ([.github/workflows/ci.yml](../.github/workflows/ci.yml)).
 - **Weekly:** `fuzz-long.yml` sets `FUZZ_TIME: 10m` and uploads any crashers it finds
@@ -214,8 +214,8 @@ commit message if one appears.
 **#15 — the allowlist is root-owned and never mounted.** This is the invariant the design rests on: if
 the container can write the allowlist, the allowlist is decoration. Erosion looks like moving
 `targets.json` next to `config.yaml` "for convenience", mounting `/etc/meridian` read-only so `doctor`
-can read it (the supported path is piping the file: `meridian-host targets | docker exec -i meridian
-meridian doctor --allowlist -`, #68), or the installer writing an allowlist into the install
+can read it (the supported path is piping the file: `cat /etc/meridian/targets.json | docker exec -i
+meridian meridian doctor --allowlist -`, #68), or the installer writing an allowlist into the install
 directory. Any diff that names `/etc/meridian` outside `deploy/` and `cmd/meridian-host` deserves a
 second look.
 
@@ -227,7 +227,7 @@ a new kind whose name is a product. The invariants rule catches the names from t
 it cannot catch a *shape* that exists for one service, so review new config fields and new kinds for
 generality.
 
-**#52 — one stdlib-only host binary.** `exec`, `probe`, `update`, `targets`, `render-units`; no Bash
+**#52 — one stdlib-only host binary.** `exec`, `probe`, `update`, `render-units`; no Bash
 logic, no third-party import, no shell. Erosion looks like `go.yaml.in/yaml/v3` creeping into
 `internal/hostexec`, a `#!/bin/bash` script that validates a request, or validation moving into a
 systemd `ExecStartPre`. The stdlib rule and the Go allowlist rule catch the imports; the review item
@@ -274,6 +274,12 @@ staleness must never read as health.
 **`ProtectHome=read-only`, not `yes`.** The probe's status directory lives under the deploy user's
 home on the target box, so `ProtectHome=yes` makes the write path unreachable and `ReadWritePaths`
 cannot undo it. The unit comment records that this failed on the first real install.
+
+**`doctor`'s allowlist hint names a command that does not exist.** The two hints in
+[internal/doctor/doctor.go](../internal/doctor/doctor.go) say to run `meridian-host targets`, but
+`meridian-host` has no `targets` subcommand ([cmd/meridian-host/main.go](../cmd/meridian-host/main.go));
+decision #68 names the same spelling. Until that is settled, the working command is
+`cat /etc/meridian/targets.json | docker exec -i meridian meridian doctor --allowlist -`.
 
 **Two bounds, and the larger must be systemd's.** The executor's per-command ceiling is 600s and the
 oneshot's `TimeoutStartSec` is 660s; inverting them would kill a healthy update mid-action and leave
@@ -327,4 +333,31 @@ The brief was written against the tree that added it; the full check and its tim
 here so a later reviewer can tell when coverage dropped rather than merely changed.
 
 <!-- check-baseline:begin -->
+```
+$ scripts/check all              # 2026-10-28, main, macOS on arm64
+== go
+0 issues.                        # golangci-lint
+ok  internal/...                 # 17 packages, go test -race -shuffle=on, go build ./cmd/...
+== fuzz (every target for 5s)
+34 targets in 12 packages, every one ok
+== web
+svelte-check: 0 errors and 0 warnings
+19 test files, 210 tests passed   # vitest
+== e2e
+Running 34 tests using 1 worker
+34 passed (1.5m)                  # Playwright against the built binary
+== security
+govulncheck: No known vulnerabilities found
+gitleaks: no leaks found
+pnpm audit --prod, actionlint, shellcheck: clean
+check: ok
+
+real  6m58.087s
+```
+
+The fuzz step is 34 targets at ~6s each including startup (~3.5 minutes). The e2e suite accounts
+for about 1.5 minutes, and the rest is lint, unit tests, the web build and the security tools. A
+reviewer comparing a later run should look at **the number of targets (34, in 12 packages) and the
+e2e count (34)**, not the wall time: both are the parts that change when a test is deleted rather
+than rewritten.
 <!-- check-baseline:end -->
