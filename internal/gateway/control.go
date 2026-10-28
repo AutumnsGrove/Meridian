@@ -26,8 +26,9 @@ type controlRequest struct {
 	Ref    string `json:"ref,omitempty"`
 }
 
-// enqueue records one tap. It answers 202 immediately with the request id: the browser polls the
-// status route for the result, so a slow action never holds a connection open.
+// enqueue records one tap. It answers 202 with the request id, and the browser polls the status route
+// for the result, so an action that takes minutes never holds a connection open. The one exception is
+// a self-update, which resolves a digest before it queues (decision #87) and may wait out a build.
 func enqueue(deps Deps) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		envelope, err := decodeControlRequest(r)
