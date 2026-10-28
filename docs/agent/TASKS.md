@@ -96,7 +96,7 @@ service, P3 = all targets, P4 = self-update and install.
 ## Stage 7: Update and install ([07-update.md](07-update.md))
 
 - [x] **T34** `updater`: resolve newest digest, handoff file (deps: T26)
-- [ ] **T35** `meridian-host update`: validation, pin, pull, recreate, health poll, rollback (deps: T27)
+- [x] **T35** `meridian-host update`: validation, pin, pull, recreate, health poll, rollback (deps: T27)
 - [ ] **T36** `install.sh` and `release.yml` (deps: T31, T35, T04)
 - [ ] **T37** `[human]` Phase 4 on the potato: push, tap, new version; broken image rolls back (deps: T34, T36)
 
