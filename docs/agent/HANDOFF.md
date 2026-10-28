@@ -3,45 +3,59 @@
 Read this first in every session. It is **rewritten, not appended**, at the end of each session; the
 history is in git. Keep it under about 40 lines: it is for a cold start with an empty context.
 
-## Last session: S15, T34 and T35 (2026-10-28)
+## Last session: S16, T36 (2026-10-28)
 
-**T34 and T35 are done and ticked.** Full `scripts/check` is green (34 e2e, fuzz, security); 35
-commits are unpushed (including this one). Stage 7's code is complete apart from T36's installer and release workflow.
+**T36 is done and ticked.** Full `scripts/check` is green (34 e2e, fuzz, security). Six commits are
+unpushed (including this one); the T35 batch is already on `origin/main`.
 
-- Container side (T34): `wire.Digest`/`ImageRepo`; `updater.Resolve` waits out an in-flight build or
-  an unmoved tag for 4 minutes; `GET /api/update` reports read-only; a self-update tap resolves and
-  writes `update-signal/requested` before it queues (decision #87).
-- Host side (T35): the allowlist's `self` entry carries `image`, `dir`, `service`, `port` and
-  `signal_file`; exactly one self target is allowed and it must set `result_first`. `meridian-host
-  update` reads the hint with `O_NOFOLLOW`, re-validates the repo plus digest, rewrites `.env` with
-  `SetVar`, pulls, recreates, polls `/healthz` for 120s, and on any failure restores the whole
-  `.env` and recreates the old container.
-- `SetVar` and `ImageRef` are fuzzed; the update command is tested with a fake `Commander`. Its
-  docker children stay in the updater's process group so the executor's timeout kill reaches them
-  (decision #89). Budgets: 180s pull, 90s recreate, 120s health, 90s rollback.
-- The e2e stub executor now actually holds the 2.5s it reports; the round-trip test's in-flight
-  assertion had been a race in the fixture, not the page.
+- `deploy/install.sh` creates the layout (including `update-signal/`), copies compose/config only when
+  absent, installs a checksummed `meridian-host`, resolves the first image digest from GHCR unless
+  `--image-digest` is given, writes `MERIDIAN_UID`/`GID` and a digest-pinned `MERIDIAN_IMAGE`, renders
+  and validates the units and sudoers through `meridian-host render-units`, enables the probe timer
+  and control path, and prints a pass/fail table. `--upgrade-host` replaces only the binary;
+  `--dry-run` is a non-root plan and a Go test runs the real script against a fake binary.
+- `meridian-host render-units` fills the closed placeholder list (`strings.NewReplacer`), refuses an
+  unknown `@…@` or an injecting value, and has a test that renders the real templates and checks the
+  T31 directives.
+- `.github/workflows/release.yml`: the image job follows a successful CI on `main` (`:latest`) or a
+  `v*` tag (`:vX.Y.Z`), pushes both architectures with provenance, an SBOM and an OIDC attestation,
+  and prints the digest. The tag job builds `meridian-host` for arm64 and amd64, writes `SHA256SUMS`,
+  and creates or updates the release with `gh`.
+- `deploy/targets.example.json` now names the dashboard `meridian`, matching `config.yaml.example`'s
+  `update.target`; the old `hub` name is gone.
 
 ## Next
 
-**S16: T36** (`deploy/install.sh` and `.github/workflows/release.yml`), then the `[human]` gate T37.
-Read `docs/agent/07-update.md` T36 and `docs/CONTROL.md` "Update validation". T36 adds the
-`meridian-host render-units` helper (`strings.NewReplacer`, not `text/template`) and tests every
-template leaves no `@` placeholder; the installer creates `update-signal/`, installs the host binary
-with a checksum, never overwrites an existing `targets.json`, validates units and sudoers before
-moving them, and verifies the timer and path units.
+**S17: T38**, the review brief. Read `docs/agent/08-closeout.md` T38. Write `docs/REVIEW-BRIEF.md`:
+the hard constraints with the mechanical test for each, the six trust boundaries and their fuzz
+targets, the generated fuzz-target list, the decisions most likely to erode (#10, #14, #15, #38, #52,
+#63), the sharp edges, suggested review lanes, and the `scripts/check all` output and fuzz timings.
+It is docs only and must contain no build-out task ids.
+
+**T37 is the owner's Phase 4 gate**, not a code session. Steps:
+
+- Install a fresh box layout in a scratch directory with `sudo deploy/install.sh --version vX.Y.Z`
+  (or `--host-binary dist/meridian-host --image-digest sha256:…`). The installer leaves existing
+  `.env`, `targets.json` and compose files alone, so a scratch directory is easier than the live one.
+- The generic `targets.json` self target uses `/srv/meridian`; edit its `dir`/`signal_file` to the
+  install directory (or start from `examples/targets.homelab.json`), and set `config.yaml`'s
+  `update.target` and `update.image` to match.
+- Push a trivial change, wait for CI and then the release workflow, tap update, and watch the version
+  change. Push a deliberately broken image and confirm the previous digest is back in `.env` and the
+  result says `failed`.
 
 ## Gotchas
 
-- The box is unchanged: no `~/Meridian/update-signal/`, no compose mount, old `targets.json` with
-  `meridian` on the retired `meridian-update.service`. T36 creates the directory and the self fields;
-  T37 proves it. Do not copy the new `update:` block there before that.
-- `meridian-host update` takes no target argument: it finds the one `self` target by kind. It refuses
-  to run as root; the executor starts it as the deploy user.
-- `.env` must be a regular file (no symlink) because the updater opens it with `O_NOFOLLOW`.
+- The box is still on the old layout: its compose has no `update-signal` mount and its `targets.json`
+  still points `meridian` at `meridian-update.service`. T37 is what replaces those; do not assume the
+  installer has run there.
+- `install.sh --version` uses the same `vX.Y.Z` tag for the host asset and the image. A dev install
+  with `--host-binary` defaults to `latest`; pass `--image-digest` if that tag is not published.
+- The installer's `IMAGE_REPO` is `ghcr.io/autumnsgrove/meridian`; a fork edits the constant.
+- `observe.json` is seeded from the example, not generated from `targets.json`; adding a target's unit
+  is the CONTROL.md checklist step.
 - The full check is roughly four minutes of fuzzing (34 targets at 5s plus startup) and ~1.5 minutes
-  of Playwright. Use `scripts/check --fast` while working and `FUZZ_TIME=1s scripts/check` for a
-  quicker full pass; the default full check is the push gate.
+  of Playwright. Use `--fast` while working; `FUZZ_TIME=1s scripts/check` is a quicker full pass.
 - Still true: the control loop starts only once `/api/status` says a control plane exists; e2e needs
   both `pnpm build` and `go build`; 12px `--color-text-faint` fails axe; `ProtectHome=read-only` in
   the probe unit; executor 600s / unit 660s; `hostfile.Read` takes the owner; `hostexec`/`wire`/
@@ -49,6 +63,6 @@ moving them, and verifies the timer and path units.
 
 ## For the owner
 
-- **Tick T24 and T32** after a look on your phone. **T33** needs your hands: the rest of the target
-  matrix, `control.reboot: true`, and the AdGuard auto-restore proof.
+- **T37** is the Phase 4 proof. **Tick T24 and T32** after a look on your phone, and **T33** needs
+  your hands: the rest of the target matrix, `control.reboot: true`, and the AdGuard auto-restore.
 - Dependabot's TypeScript 7 offer still needs a decision, not a merge.
