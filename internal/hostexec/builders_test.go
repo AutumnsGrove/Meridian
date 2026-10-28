@@ -321,6 +321,11 @@ func accountedFor(value string, in hostexec.BuildInput) bool {
 		pieces = append(pieces, in.Target.Update.Cmd...)
 	}
 	for _, piece := range pieces {
+		// Exact equality first: an allowlist is allowed to say "no argument here", and the property is
+		// about where an element came from, not about it being non-empty.
+		if piece == value {
+			return true
+		}
 		if piece != "" && strings.Contains(value, piece) {
 			return true
 		}

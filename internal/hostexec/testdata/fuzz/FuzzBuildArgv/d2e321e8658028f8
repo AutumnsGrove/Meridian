@@ -1,0 +1,12 @@
+go test fuzz v1
+string("container")
+string("update")
+string("")
+string("0")
+string("0")
+string("0")
+string("command")
+string("")
+string("\x00")
+string("0")
+string("")
