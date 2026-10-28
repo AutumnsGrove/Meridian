@@ -30,7 +30,7 @@ var dnsTargets = map[string]bool{"metrics": true}
 // poll, which is the state the suite asserts on.
 const (
 	executorDrain = 50 * time.Millisecond
-	executorWork  = 1200 * time.Millisecond
+	executorWork  = 2500 * time.Millisecond
 	// executorRebootHold is how long a reboot stays in progress, so the page can show its banner.
 	executorRebootHold = 1500 * time.Millisecond
 )

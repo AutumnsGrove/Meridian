@@ -23,6 +23,8 @@ function row(page: Page, name: string) {
 
 test('acts, follows the action and keeps the receipt', async ({ page }) => {
 	const gitea = row(page, 'Gitea');
+	const history = page.getByRole('region', { name: 'Action history' }).getByText('restart gitea');
+	const before = await history.count();
 
 	await expect(gitea.getByRole('button', { name: 'restart' })).toBeEnabled();
 	await gitea.getByRole('button', { name: 'restart' }).click();
@@ -30,11 +32,10 @@ test('acts, follows the action and keeps the receipt', async ({ page }) => {
 	// In flight first: the row says what is happening before the executor has answered.
 	await expect(gitea.getByText(/restarting/)).toBeVisible();
 
-	// Then the result, and the history line that proves the action happened.
+	// Then the result, and the history line that proves the action happened. The control directory is
+	// shared by every test in the run, so the row count is what is asserted, not the presence of one.
 	await expect(gitea.getByText(/restarted in \d/)).toBeVisible();
-	await expect(
-		page.getByRole('region', { name: 'Action history' }).getByText('restart gitea')
-	).toBeVisible();
+	await expect(history).toHaveCount(before + 1);
 });
 
 test('arms a DNS stop, warns, and cancels it again', async ({ page }) => {
