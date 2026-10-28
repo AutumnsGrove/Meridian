@@ -73,7 +73,7 @@ services:
     section: everyday
     icon: mail
     description: mail
-    url: http://100.81.103.51:8418
+    url: http://lepotato.taild95077.ts.net:8418
     probes:
       health:
         kind: http_json
