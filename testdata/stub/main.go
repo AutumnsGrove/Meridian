@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -29,7 +30,14 @@ var services = []string{"gitea", "jellyfin"}
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:3000", "address to listen on")
+	control := flag.String("control", "", "run the stub executor over this control directory")
 	flag.Parse()
+
+	if *control != "" {
+		// The e2e run has no root and no systemd, so this stands in for meridian-host exec: it drains
+		// the same inbox and writes the same results and audit lines.
+		newExecutor(*control).start(context.Background())
+	}
 
 	server := &http.Server{Addr: *addr, Handler: newHandler(), ReadHeaderTimeout: 5 * time.Second}
 	// A fixture, not the shipped binary: STANDARDS section 5's exit rules are about product code,

@@ -23,6 +23,7 @@ const binary = join(repoRoot, 'dist', 'meridian');
 const runDir = dirname(statePath);
 const configPath = join(runDir, 'config.yaml');
 const hostFile = join(runDir, 'host.json');
+const controlDir = join(runDir, 'control');
 const appLog = join(runDir, 'meridian.log');
 const stubLog = join(runDir, 'stub.log');
 
@@ -55,7 +56,12 @@ function writeConfig(appAddress: string, stubAddress: string): void {
 		['listen: 127.0.0.1:8891', `listen: ${appAddress}`],
 		['http://localhost:3000', `http://${stubAddress}/gitea`],
 		['http://localhost:8096', `http://${stubAddress}/jellyfin`],
-		['file: /status/host.json', `file: ${hostFile}`]
+		['file: /status/host.json', `file: ${hostFile}`],
+		// The control plane is a directory pair in the real container; here it is this run's temp dir,
+		// and reboot is allowed so the page's danger zone is live.
+		['inbox_dir: /control/inbox', `inbox_dir: ${join(controlDir, 'inbox')}`],
+		['outbox_dir: /control/outbox', `outbox_dir: ${join(controlDir, 'outbox')}`],
+		['reboot: false', 'reboot: true']
 	] as const;
 
 	let text = fixture;
@@ -174,6 +180,9 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
 
 	rmSync(runDir, { recursive: true, force: true });
 	mkdirSync(runDir, { recursive: true });
+	for (const dir of ['inbox/queue', 'inbox/tmp', 'outbox/results']) {
+		mkdirSync(join(controlDir, dir), { recursive: true });
+	}
 
 	const [appPort, stubPort] = await Promise.all([freePort(), freePort()]);
 	const appAddress = `127.0.0.1:${appPort}`;
@@ -197,7 +206,9 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
 	heartbeat.unref();
 
 	try {
-		stub = await start(stubBin, [`-addr=${stubAddress}`], stubLog);
+		// The stub upstream and the stub executor are one process: the suite needs both, and two
+		// binaries for a fixture would be two things to keep in step.
+		stub = await start(stubBin, [`-addr=${stubAddress}`, `-control=${controlDir}`], stubLog);
 		await waitFor(`${stubURL}/healthz`, 'the stub upstream', stub, stubLog);
 
 		app = await start(binary, ['run', '--config', configPath], appLog);

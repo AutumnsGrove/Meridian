@@ -88,7 +88,7 @@ service, P3 = all targets, P4 = self-update and install.
 - [x] **T27** `meridian-host exec` core: allowlist, validation, results, audit, prune (deps: T25)
 - [x] **T28** Runners: systemd, compose, container, host, run-as, timeouts (deps: T27)
 - [x] **T29** DNS auto-restore and cancel, reboot, Meridian self-restart (deps: T28)
-- [ ] **T30** Control UI: armed buttons, countdown, banners, reconnect (deps: T26, T18)
+- [x] **T30** Control UI: armed buttons, countdown, banners, reconnect (deps: T26, T18)
 - [ ] **T31** Control units, sudoers, installer pieces (deps: T27)
 - [ ] **T32** `[human]` Phase 2 on the potato: bwmon restart end to end (deps: T26, T28, T30, T31)
 - [ ] **T33** `[human]` Phase 3 on the potato: full target matrix, Vaultwarden capture (deps: T29, T32)
