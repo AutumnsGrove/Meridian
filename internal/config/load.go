@@ -57,6 +57,7 @@ const (
 	CodeUpdateImage                Code = "update_image_invalid"
 	CodeUpdatePublishURL           Code = "update_publish_url_invalid"
 	CodeUpdateSignalDir            Code = "update_signal_dir_invalid"
+	CodeUpdateTarget               Code = "update_target_invalid"
 	CodeProbeKindMissing           Code = "probe_kind_missing"
 	CodeProbeKindUnknown           Code = "probe_kind_unknown"
 	CodeProbeKeyMissing            Code = "probe_key_missing"

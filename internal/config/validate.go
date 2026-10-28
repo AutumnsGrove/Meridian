@@ -200,6 +200,31 @@ func (validator *validator) validateUpdate(parsed *Config) {
 		validator.fail("update.signal_dir", CodeUpdateSignalDir,
 			"signal_dir must be an absolute, clean container path like /update-signal")
 	}
+	if !wire.IsSlug(parsed.Update.Target) {
+		validator.fail("update.target", CodeUpdateTarget,
+			"%q is not the slug of a control target", parsed.Update.Target)
+	} else if !offersUpdate(parsed, parsed.Update.Target) {
+		validator.fail("update.target", CodeUpdateTarget,
+			"no service declares target %q with an update action", parsed.Update.Target)
+	}
+}
+
+// offersUpdate reports whether some service's control block names the target and offers update. The
+// update block is the image behind that target; without the pair, a tap cannot resolve the right
+// digest for the target it is updating.
+func offersUpdate(parsed *Config, target string) bool {
+	for index := range parsed.Services {
+		control := parsed.Services[index].Control
+		if control == nil || control.Target != target {
+			continue
+		}
+		for _, action := range control.Actions {
+			if action == string(wire.ActionUpdate) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (validator *validator) validateServices(parsed *Config) {

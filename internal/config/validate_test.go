@@ -314,6 +314,12 @@ func brokenConfigs(t *testing.T) []brokenConfig {
 			code:     config.CodeUpdateSignalDir,
 		},
 		{
+			name:     "update target no service declares",
+			document: substitute(t, minimal, "listen: 127.0.0.1:8891", "listen: 127.0.0.1:8891\nupdate: {image: ghcr.io/owner/name, publish_url: \"https://api.example.org/runs\", target: other}"),
+			path:     "update.target",
+			code:     config.CodeUpdateTarget,
+		},
+		{
 			name:     "host status without a file",
 			document: substitute(t, minimal, "listen: 127.0.0.1:8891", "listen: 127.0.0.1:8891\nhost_status: {max_age: 1m}"),
 			path:     "host_status.file",

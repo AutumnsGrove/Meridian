@@ -92,9 +92,12 @@ func TestParse_AppliesDefaults(t *testing.T) {
 	}
 }
 
+const appServiceWithUpdate = `  - {id: app, name: App, section: everyday, icon: sparkles, probes: {health: {kind: self}}, control: {target: app, actions: [restart, update]}}`
+
 func TestParse_DefaultsTheUpdateSignalDirectory(t *testing.T) {
-	document := substitute(t, minimal, "listen: 127.0.0.1:8891",
-		"listen: 127.0.0.1:8891\nupdate: {image: ghcr.io/owner/name, publish_url: \"https://api.example.org/runs\"}")
+	document := substitute(t, minimal, appService, appServiceWithUpdate)
+	document = substitute(t, document, "listen: 127.0.0.1:8891",
+		"listen: 127.0.0.1:8891\nupdate: {image: ghcr.io/owner/name, publish_url: \"https://api.example.org/runs\", target: app}")
 	parsed, _ := parse(t, document)
 	if parsed.Update == nil {
 		t.Fatal("update = nil, want the block")
@@ -111,8 +114,9 @@ func TestParse_DefaultsTheUpdateSignalDirectory(t *testing.T) {
 }
 
 func TestParse_KeepsTheUpdateSignalDirectoryWhenWritten(t *testing.T) {
-	document := substitute(t, minimal, "listen: 127.0.0.1:8891",
-		"listen: 127.0.0.1:8891\nupdate: {image: ghcr.io/owner/name, publish_url: \"https://api.example.org/runs\", signal_dir: /var/run/update}")
+	document := substitute(t, minimal, appService, appServiceWithUpdate)
+	document = substitute(t, document, "listen: 127.0.0.1:8891",
+		"listen: 127.0.0.1:8891\nupdate: {image: ghcr.io/owner/name, publish_url: \"https://api.example.org/runs\", signal_dir: /var/run/update, target: app}")
 	parsed, _ := parse(t, document)
 	if got, want := parsed.Update.SignalDir, "/var/run/update"; got != want {
 		t.Errorf("update.signal_dir = %q, want %q", got, want)

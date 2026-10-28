@@ -55,6 +55,7 @@ update:
   image: ghcr.io/autumnsgrove/meridian
   publish_url: "https://api.github.com/repos/autumnsgrove/meridian/actions/workflows/release.yml/runs?branch=main&per_page=1"
   signal_dir: /update-signal
+  target: meridian
 
 services:
   # ── everyday ─────────────────────────────────────────────────────────────────────────────

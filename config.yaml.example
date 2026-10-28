@@ -64,6 +64,7 @@ update:
   image: ghcr.io/owner/name      # the GHCR repository, never a tag or a digest
   publish_url: "https://api.github.com/repos/owner/name/actions/workflows/release.yml/runs?branch=main&per_page=1"
   signal_dir: /update-signal     # rw mount shared with the host; this is the default
+  target: meridian               # the control target whose update is this image
 
 services:
   # ── a plain web app ───────────────────────────────────────────────────────────────────────

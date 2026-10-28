@@ -82,6 +82,9 @@ type Update struct {
 	PublishURL string `yaml:"publish_url"`
 	// SignalDir is the container path of the writable self-update handoff directory.
 	SignalDir string `yaml:"signal_dir"`
+	// Target is the control target this image belongs to. An update request for it resolves the
+	// digest and writes the handoff before the request reaches the host.
+	Target string `yaml:"target"`
 }
 
 // Service is one tile and everything behind it.
