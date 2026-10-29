@@ -1,23 +1,65 @@
 package config_test
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
-	"sort"
 	"strings"
 	"testing"
 
 	"github.com/autumnsgrove/meridian/internal/config"
 )
 
-// TestKindTables_MatchTheVocabularyComment keeps the tables and the documented vocabulary at the
-// bottom of config.yaml.example from drifting: the comment is the contract users read.
-func TestKindTables_MatchTheVocabularyComment(t *testing.T) {
-	health, vital := parseVocabulary(t, filepath.Join("..", "..", "config.yaml.example"))
-	assertSameKinds(t, "health", health, config.HealthKinds)
-	assertSameKinds(t, "vital", vital, config.VitalKinds)
+// TestKindsDoc_MatchesTheExampleConfig keeps the generated vocabulary block in config.yaml.example
+// identical to what `meridian docs kinds` prints, so the template users read cannot rot.
+func TestKindsDoc_MatchesTheExampleConfig(t *testing.T) {
+	path := filepath.Join("..", "..", "config.yaml.example")
+	data, err := os.ReadFile(path) //nolint:gosec // a repo path named by the test
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+
+	documented, err := generatedBlock(string(data))
+	if err != nil {
+		t.Fatalf("%s: %v", path, err)
+	}
+	if documented != config.KindsDoc() {
+		t.Errorf("%s's vocabulary block is stale; replace it with the output of `meridian docs kinds`\n\nwant:\n%s\ngot:\n%s",
+			path, config.KindsDoc(), documented)
+	}
+}
+
+// generatedBlock extracts the comment block between the docs-kinds markers and strips the "# " prefix,
+// so it can be compared with the command's plain text.
+func generatedBlock(document string) (string, error) {
+	lines := strings.Split(document, "\n")
+	start, end := -1, -1
+	for i, line := range lines {
+		switch {
+		case strings.Contains(line, "docs kinds begin"):
+			start = i + 1
+		case strings.Contains(line, "docs kinds end"):
+			end = i
+		}
+	}
+	if start < 0 || end < start {
+		return "", errors.New("the docs kinds begin/end markers are missing")
+	}
+
+	block := make([]string, 0, end-start)
+	for _, line := range lines[start:end] {
+		switch {
+		case line == "#":
+			block = append(block, "")
+		case strings.HasPrefix(line, "# "):
+			block = append(block, strings.TrimPrefix(line, "# "))
+		default:
+			return "", fmt.Errorf("line %q inside the block is not a comment", line)
+		}
+	}
+	return strings.Join(block, "\n") + "\n", nil
 }
 
 func TestKindTables_AreSelfConsistent(t *testing.T) {
@@ -237,59 +279,6 @@ func TestRepositoryConfigs_Load(t *testing.T) {
 				t.Errorf("Load(%s) found no services", path)
 			}
 		})
-	}
-}
-
-var kindName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
-
-// parseVocabulary reads the kind names out of the comment block at the bottom of the example config.
-func parseVocabulary(t *testing.T, path string) (health, vital []string) {
-	t.Helper()
-	data, err := os.ReadFile(path) //nolint:gosec // a repo path named by the test
-	if err != nil {
-		t.Fatalf("ReadFile(%s): %v", path, err)
-	}
-
-	section := ""
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "# ") && !strings.HasPrefix(line, "#   ") {
-			switch {
-			case strings.Contains(line, "Probe kinds"):
-				section = "health"
-			case strings.Contains(line, "Vital kinds"):
-				section = "vital"
-			default:
-				section = ""
-			}
-			continue
-		}
-		if section == "" || !strings.HasPrefix(line, "#   ") {
-			continue
-		}
-		fields := strings.Fields(strings.TrimSpace(strings.TrimPrefix(line, "#")))
-		if len(fields) < 2 || !kindName.MatchString(fields[0]) || !strings.HasPrefix(fields[1], "{") {
-			continue
-		}
-		switch section {
-		case "health":
-			health = append(health, fields[0])
-		case "vital":
-			vital = append(vital, fields[0])
-		}
-	}
-	return health, vital
-}
-
-func assertSameKinds(t *testing.T, family string, documented []string, table map[string]config.KindRules) {
-	t.Helper()
-	fromTable := make([]string, 0, len(table))
-	for kind := range table {
-		fromTable = append(fromTable, kind)
-	}
-	sort.Strings(documented)
-	sort.Strings(fromTable)
-	if strings.Join(documented, ",") != strings.Join(fromTable, ",") {
-		t.Errorf("%s kinds in the example config = %v, in the table = %v", family, documented, fromTable)
 	}
 }
 

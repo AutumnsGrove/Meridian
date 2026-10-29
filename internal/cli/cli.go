@@ -34,6 +34,7 @@ commands:
   run          serve the dashboard until asked to stop
   doctor       explain the config against the world, read only
   healthcheck  ask the running dashboard whether it is alive
+  docs kinds   print the probe and vital vocabulary
   version      print the build version
   help         print this help
 
@@ -158,7 +159,7 @@ func newRoot(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return usageError{err.Error()}
 	})
-	root.AddCommand(newRunCommand(), newDoctorCommand(), newHealthcheckCommand(), newVersionCommand())
+	root.AddCommand(newRunCommand(), newDoctorCommand(), newHealthcheckCommand(), newDocsCommand(), newVersionCommand())
 	return root
 }
 

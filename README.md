@@ -59,7 +59,8 @@ Nothing about this homelab is in the code. Service names, hostnames, ports, icon
 search buttons and every probe are configuration.
 
 - Start from [`config.yaml.example`](config.yaml.example), which documents every probe and vital
-  shape and the full vocabulary.
+  shape and the full vocabulary. The vocabulary block at the bottom is generated: `docker exec
+  meridian /meridian docs kinds` prints it from the code's own table, and a test compares the two.
 - Secrets are environment variable **names** in `config.yaml`, and values in `~/Meridian/.env` only.
   They never reach the browser.
 - Reload without a restart: `docker kill -s HUP meridian` (or run the binary with `--watch`).

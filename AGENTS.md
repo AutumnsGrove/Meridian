@@ -57,8 +57,9 @@ The vocabulary is one table per kind, and everything else reads it:
    others.
 3. Add table tests for the runner, and a fuzz target if the kind parses untrusted bytes (see
    [docs/STANDARDS.md](docs/STANDARDS.md) section 3).
-4. Add the kind to the vocabulary at the bottom of [`config.yaml.example`](config.yaml.example) — a
-   test compares that section with the tables and fails until they agree.
+4. Regenerate the vocabulary block at the bottom of [`config.yaml.example`](config.yaml.example)
+   with `meridian docs kinds`: the block is compared with that output by a test and fails until they
+   agree.
 5. Run `scripts/check`. `TestHealthRunners_MatchTheConfigKinds` and its vital twin fail until the
    table, the runner and the example all agree.
 
