@@ -10,9 +10,10 @@ name: review
 #   variable REVIEW_MODEL         a provider-qualified model id, e.g.
 #                                 openrouter/anthropic/claude-sonnet-4.6
 #
-# With either one missing the job is skipped, so a fresh clone or a fork never spends anything: the
-# variable is checked in the job's condition, the secret in the first step (a secret cannot be read
-# in an `if` expression, so it produces a warning annotation instead of a failed run).
+# A secret named REVIEW_MODEL also works, because storing a non-sensitive id on the secrets page is
+# an easy mistake to make; the variable is the intended home. With either missing the job starts and
+# skips in its first step (a secret cannot be read in a job's `if`, so the check lives there), and
+# with the key missing it warns instead of failing on every pull request.
 #
 # The choices below are deliberate (decision #94):
 #   - pull_request, never pull_request_target, so a fork's PR never sees the secret; forks are also
@@ -37,8 +38,7 @@ jobs:
     name: review the diff
     if: >-
       github.event.pull_request.draft == false &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      vars.REVIEW_MODEL != ''
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -52,8 +52,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          REVIEW_MODEL_VARIABLE: ${{ vars.REVIEW_MODEL }}
+          REVIEW_MODEL_SECRET: ${{ secrets.REVIEW_MODEL }}
         run: |
           set -euo pipefail
+          model="${REVIEW_MODEL_VARIABLE:-${REVIEW_MODEL_SECRET:-}}"
+          if [ -z "$model" ]; then
+            echo "::notice::the reviewer is not configured: set the REVIEW_MODEL variable (or secret)"
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ -z "${OPENROUTER_API_KEY:-}" ]; then
             echo "::warning::the reviewer is enabled but OPENROUTER_API_KEY is not set"
             echo "skip=true" >>"$GITHUB_OUTPUT"
@@ -71,6 +79,7 @@ jobs:
             exit 0
           fi
           echo "skip=false" >>"$GITHUB_OUTPUT"
+          echo "model=$model" >>"$GITHUB_OUTPUT"
 
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         if: steps.gate.outputs.skip == 'false'
@@ -105,7 +114,7 @@ jobs:
         if: steps.gate.outputs.skip == 'false'
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          REVIEW_MODEL: ${{ vars.REVIEW_MODEL }}
+          REVIEW_MODEL: ${{ steps.gate.outputs.model }}
         run: |
           set -euo pipefail
           {
