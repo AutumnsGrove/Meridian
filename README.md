@@ -1,93 +1,118 @@
 # Meridian
 
-The front door to the homelab: one page that links to every self-hosted service, shows whether
-each one is actually up, and — when something needs a kick — lets you restart, update or stop it
-without finding the right SSH command at the wrong moment.
+The front door to the homelab: one page that links to every self-hosted service, shows whether each
+one is actually up, and — when something needs a kick — lets you restart, update or stop it without
+finding the right SSH command at the wrong moment.
 
-**Status: design complete, build not started.** No application code yet — this repo holds the design
-and plan documents, the engineering standards, the build work order, a generic config template and
-one worked example. Nothing is deployed.
+**Status: built, deployed, maintained.** Two binaries, one container and a root-owned host side, all
+released from this repo. The design is in [docs/](docs/ARCHITECTURE.md); the rules for changing it are
+in [docs/STANDARDS.md](docs/STANDARDS.md).
 
 Named after the line that passes overhead: the reference you measure everything else against. The
 sibling projects are Polaris (a fixed star you navigate by) and Ivy (the mail client); Meridian is
 where you stand to look at all of them.
 
-## Why it exists
+## Quick start
 
-There are now seven things worth opening — Polaris, Ivy, bwmon, AdGuard, SearxNG, Vaultwarden and
-this page — and each one has its own URL, port and scheme, so "bookmark everything" stopped being
-useful around the third one. A launcher could just be a page of links. Meridian is a page of links
-that also knows their state, which is the part a bookmarks folder cannot do:
+### Install
 
-- every service already exposes an unauthenticated health endpoint or a cheap count that is worth
-  one glance (Ivy's needs-attention queue, bwmon's bytes today, AdGuard's blocked percentage,
-  Polaris's build stamp) — see [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)
-- the homelab's existing health check already knows how to tell whether each one is alive, and it
-  runs unattended, so nobody is watching when it fails
-- the recovery procedure for a wedged service is currently "SSH in and remember whether Polaris is
-  a `docker compose` project or a systemd unit", which is exactly the thing you do not want to be
-  recalling at the moment something is broken
+You need a Debian-family box with systemd and Docker, a checkout of this repo, and `sudo`.
+
+```bash
+git clone https://github.com/AutumnsGrove/Meridian.git
+cd Meridian
+sudo deploy/install.sh --version vX.Y.Z      # the tag of the latest release
+```
+
+The installer creates `~/Meridian` (the data directory) and `/etc/meridian` (root-owned), installs a
+checksummed `meridian-host` from that release, pins the first image digest from GHCR into `.env`,
+renders the units and the sudoers rule and validates them with `systemd-analyze` and `visudo`, then
+enables the probe timer and the control watcher and prints a pass/fail table. It never overwrites an
+existing `config.yaml`, `targets.json`, `observe.json`, compose file or `.env`.
+
+`sudo deploy/install.sh --dry-run` prints the whole plan without changing anything, and
+`--host-binary dist/meridian-host` installs a binary you built yourself. Then:
+
+```bash
+$EDITOR ~/Meridian/config.yaml               # your services, sections and probes
+sudo $EDITOR /etc/meridian/targets.json      # what the control page may act on
+cd ~/Meridian && docker compose up -d
+tailscale serve --bg --https=8891 http://127.0.0.1:8891
+```
+
+Without `targets.json` the page is a launcher. With it, the control page can act, and only on what
+that file allows.
+
+### Update
+
+- **The dashboard:** tap update on Meridian's own row in `/control`. The container resolves the newest
+  digest of `update.image` from GHCR, pins it, pulls, recreates, polls `/healthz` for 120 seconds and
+  restores the previous image and `.env` if anything fails.
+- **The host binary:** `sudo deploy/install.sh --upgrade-host --version vX.Y.Z` from a checkout. The
+  container never changes it: the privileged half is upgraded deliberately, by hand.
+- **Releases:** a push to `main` that passes CI publishes `:latest`; a `vX.Y.Z` tag publishes
+  `:vX.Y.Z` and attaches the two `meridian-host` binaries with `SHA256SUMS`.
+
+### Point it at your services
+
+Nothing about this homelab is in the code. Service names, hostnames, ports, icons, section headings,
+search buttons and every probe are configuration.
+
+- Start from [`config.yaml.example`](config.yaml.example), which documents every probe and vital
+  shape and the full vocabulary.
+- Secrets are environment variable **names** in `config.yaml`, and values in `~/Meridian/.env` only.
+  They never reach the browser.
+- Reload without a restart: `docker kill -s HUP meridian` (or run the binary with `--watch`).
+- Ask it what is wrong: `cat /etc/meridian/targets.json | docker exec -i meridian /meridian doctor
+  --allowlist -`. The command is read-only and explains the config against the world.
+- Control targets are the privileged half and live outside the container: add them to
+  `/etc/meridian/targets.json` and `observe.json` following the checklist in
+  [docs/CONTROL.md](docs/CONTROL.md).
+- [`examples/homelab.yaml`](examples/homelab.yaml) is this box's real config, quirks and all, if you
+  want a worked example of every shape in use.
+
+A CI test renders a fixture config of services this project has never heard of, so the portability
+claim cannot quietly rot.
 
 ## What it is not
 
 Not SSO, and deliberately so. The tailnet is the access control; every service here is already
-reachable by anyone on the tailnet with no login of its own. Meridian adds no identity layer,
-because there is nothing to layer it onto. It also is not a monitoring system (no alerting, no
-history beyond the action log), not a port forward, and not a way to reach the homelab from outside
-Tailscale.
+reachable by anyone on the tailnet with no login of its own. Meridian adds no identity layer, because
+there is nothing to layer it onto. It also is not a monitoring system (no alerting, no metrics
+history), not a port forward, and not a way to reach the homelab from outside Tailscale.
 
-If Meridian is down, nothing else breaks — the URLs still work when typed by hand. It is a single
-point of *discovery*, not of *service*, and that asymmetry is the reason the design can stay small.
+If Meridian is down, nothing else breaks: the URLs still work when typed by hand. It is a single point
+of *discovery*, not of *service*, and that asymmetry is why the design stays small.
 
-## Bring your own services
+## How it is put together
 
-Nothing about this homelab is in the code. Service names, hostnames, ports, icons, section headings,
-search buttons and every probe are configuration, so pointing Meridian at a different set of services
-means copying `config.yaml.example`, editing it, and sending `SIGHUP` — no rebuild, no code changes.
+A single Go binary with a SvelteKit frontend embedded via `go:embed`, run as a distroless container
+with host networking and only the control inbox and the update signal writable. A second, stdlib-only
+Go binary on the host, `meridian-host`, is the only thing that ever acts on a service: it reads the
+request files the container writes, validates them against the root-owned allowlist, and runs the
+command that file names.
 
-- [`config.yaml.example`](config.yaml.example) — a generic template with a placeholder service for
-each supported probe shape, and the full vocabulary documented at the bottom
-- [`examples/homelab.yaml`](examples/homelab.yaml) — this box's real config, quirks and all
-- `meridian doctor` — resolves the config, checks every control target against the host allowlist,
-  probes each service once and explains anything red
-- A CI test renders a fixture config of services this project has never heard of, so the portability
-  claim can't quietly rot
-
-The privileged half is the one thing that stays machine-specific: `/etc/meridian/targets.json` is a
-root-owned allowlist of what may be started, stopped or restarted (see
-docs/CONTROL.md). Without it the page is a launcher; with it, it can act.
+The container never gets the Docker socket, root, `systemctl` or a shell. Read
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the diagram and the two probe paths, and
+[docs/CONTROL.md](docs/CONTROL.md) before changing anything about that boundary.
 
 ## Documents
 
 | Doc | What's in it |
 |---|---|
-| [docs/history/PLAN.md](docs/history/PLAN.md) | Phased milestones, what "done" means for each, open questions |
-| [docs/STANDARDS.md](docs/STANDARDS.md) | How code is written, tested, fuzzed, secured and committed |
-| [docs/history/build-out/](docs/history/build-out/README.md) | The build work order: ordered tasks with the design decisions each one needs |
-| [AGENTS.md](AGENTS.md) | Entry point for a coding agent working in this repo |
-| [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) | Design questions raised during the build, awaiting an answer |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, polling model, config shape, host/container boundary, files on disk |
-| [docs/CONTROL.md](docs/CONTROL.md) | The privileged control plane: request protocol, allowlist, guards, audit, threat model |
+| [CLAUDE.md](CLAUDE.md) | The hard constraints, and the rules for changing this repo |
+| [AGENTS.md](AGENTS.md) | The same, for a coding agent, with the "how do I" recipes |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, networking, polling, config shape, files on disk |
+| [docs/CONTROL.md](docs/CONTROL.md) | The privileged control plane: protocol, allowlist, guards, audit, threat model |
 | [docs/DESIGN.md](docs/DESIGN.md) | Visual language, tokens, layouts, phone-first behaviour, accessibility |
 | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Per-service probe/vital/action matrix, verified endpoints, adding a service |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log, including the alternatives that were rejected and why |
-| [config.yaml.example](config.yaml.example) | Generic config template: every probe shape, and the full vocabulary |
+| [docs/STANDARDS.md](docs/STANDARDS.md) | How code is written, tested, fuzzed, secured and committed |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | The decision log, with the alternatives that were rejected and why |
+| [docs/REVIEW-BRIEF.md](docs/REVIEW-BRIEF.md) | What is load-bearing, the trust boundaries and the review lanes |
+| [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) | Questions awaiting the owner's answer |
+| [docs/history/](docs/history/PLAN.md) | The plan and build-out work order, archived and not maintained |
+| [config.yaml.example](config.yaml.example) | Generic config template: every probe shape and the full vocabulary |
 | [examples/homelab.yaml](examples/homelab.yaml) | This homelab's worked config |
-| [CLAUDE.md](CLAUDE.md) | Rules for AI assistants working here, including the mockup brief |
-
-## Shape of the thing (planned)
-
-A single Go binary with a SvelteKit frontend embedded via `go:embed`, the same shape as Polaris and
-Ivy, deployed as a container on the Le Potato that only ever pulls a CI-built image. Two views:
-
-1. **Launcher** — grouped tiles, a status dot and one vital number each, plus a search box with two
-   buttons: *Search* (SearxNG) and *Ask Polaris*.
-2. **Control** — per-service health detail and action buttons, including restart, update, stop
-   (two-step, with automatic DNS recovery) and an emergency reboot of the box.
-
-The container never gets the Docker socket. Actions are performed by a host-side watcher reading a
-request file, validated against a root-owned allowlist. Read
-[docs/CONTROL.md](docs/CONTROL.md) before changing anything about that boundary.
 
 ## Licence
 
