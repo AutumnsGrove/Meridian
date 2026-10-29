@@ -1,8 +1,10 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Stage 3: Probing
 
 Goal: turn config into live, honest state. This stage is almost entirely pure functions over data
 with a handful of named I/O seams, which makes it the best place to practise test-first and fuzzing.
-Read [ARCHITECTURE.md](../ARCHITECTURE.md) "Polling model" and [INTEGRATIONS.md](../INTEGRATIONS.md)
+Read [ARCHITECTURE.md](../../ARCHITECTURE.md) "Polling model" and [INTEGRATIONS.md](../../INTEGRATIONS.md)
 (especially the Ivy `Host` section) first. Decisions #11, #26, #27, #35, #40.
 
 ## Shared vocabulary

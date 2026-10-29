@@ -61,9 +61,9 @@ docs/CONTROL.md). Without it the page is a launcher; with it, it can act.
 
 | Doc | What's in it |
 |---|---|
-| [docs/PLAN.md](docs/PLAN.md) | Phased milestones, what "done" means for each, open questions |
+| [docs/history/PLAN.md](docs/history/PLAN.md) | Phased milestones, what "done" means for each, open questions |
 | [docs/STANDARDS.md](docs/STANDARDS.md) | How code is written, tested, fuzzed, secured and committed |
-| [docs/agent/](docs/agent/README.md) | The build work order: ordered tasks with the design decisions each one needs |
+| [docs/history/build-out/](docs/history/build-out/README.md) | The build work order: ordered tasks with the design decisions each one needs |
 | [AGENTS.md](AGENTS.md) | Entry point for a coding agent working in this repo |
 | [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) | Design questions raised during the build, awaiting an answer |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, polling model, config shape, host/container boundary, files on disk |

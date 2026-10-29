@@ -1,7 +1,9 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Stage 1: Foundation
 
 Goal: an empty but fully gated project. After this stage a commit that violates a standard cannot be
-made, and a push that violates one fails CI. Read [STANDARDS.md](../STANDARDS.md) sections 5, 7, 8.
+made, and a push that violates one fails CI. Read [STANDARDS.md](../../STANDARDS.md) sections 5, 7, 8.
 
 ## T01 Repo scaffold
 

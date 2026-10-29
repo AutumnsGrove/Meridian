@@ -1,3 +1,5 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Stage 7: Self-update and install
 
 Goal: PLAN Phase 4. A `git push` followed by one tap lands a new version, and a broken image rolls

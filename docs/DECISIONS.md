@@ -141,6 +141,8 @@ rules are in [STANDARDS.md](STANDARDS.md); the work order is [agent/TASKS.md](ag
 
 | 92 | **The review brief's fuzz-target table is generated from the code and gated by a test.** `docs/REVIEW-BRIEF.md` holds the table between markers; `TestReviewBrief_FuzzTargetsAreGenerated` rebuilds it from every `Fuzz*` function and the doc comment above it, and `scripts/check --fast` fails until the brief is regenerated with the test's `-update` flag. A fuzz target with no doc comment fails the test too | A hand-maintained list; a generator script that no gate runs; deriving each property from the assertions instead of a comment | The table is the one part of the brief that changes whenever code changes, which is exactly the part a reviewer would find stale. The comment above a target already exists to say why the target exists, so requiring one makes the table real at almost no cost |
 
+| 93 | **Amends #68's command spelling.** The allowlist reaches `doctor` through `cat /etc/meridian/targets.json | docker exec -i meridian meridian doctor --allowlist -`, and `meridian-host` gains no `targets` subcommand; doctor's hints name the `cat` form | Building a `meridian-host targets` subcommand so the original spelling works; leaving the hints naming a command that exits 2 | Reading a root-owned file the deploy user can already read needs no new surface on the privileged binary, and a `cat` cannot grow a flag. The pipe is the rarely-run path from #68; it should be true rather than convenient |
+
 ## Honest caveats worth re-reading
 
 - **The sudoers rule is documentation as much as enforcement** — `autumn` already holds

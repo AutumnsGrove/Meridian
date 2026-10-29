@@ -1,3 +1,5 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Build-out guide
 
 This directory is the work order for building Meridian from nothing to the end of
@@ -40,7 +42,7 @@ For each task, in order:
    A normal task is three to eight commits.
 7. **Reconcile docs.** If the code made a sentence in a design doc false, fix the doc in the same
    series. If you made a design choice the docs did not, append it to
-   [DECISIONS.md](../DECISIONS.md).
+   [DECISIONS.md](../../DECISIONS.md).
 8. **Tick.** Mark the task in TASKS.md, as its own small commit
    (`docs(tasks): tick T09`).
 9. **Next.** Pick the next unticked task whose dependencies are done.
@@ -54,7 +56,7 @@ own.
 - `[human]` needs the real box, a secret, a GitHub setting or an owner decision. Write the exact
   steps into the stage document's "Owner steps" section, leave the box unticked, and continue.
 - `deps: T##` the task cannot start until those are ticked.
-- A task listed under a question in [OPEN-QUESTIONS.md](../OPEN-QUESTIONS.md) is blocked; skip it,
+- A task listed under a question in [OPEN-QUESTIONS.md](../../OPEN-QUESTIONS.md) is blocked; skip it,
   and if the whole session is blocked say so in the handoff and stop.
 
 ## Sessions, and how to stop cleanly

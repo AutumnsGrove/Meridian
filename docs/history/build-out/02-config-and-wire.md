@@ -1,8 +1,10 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Stage 2: Config and wire types
 
 Goal: the two pieces of data everything else is built on. Config is the whole product for anyone
 but us (decisions #38-42); wire types are the contracts between the container, the host and the
-browser. Read [ARCHITECTURE.md](../ARCHITECTURE.md) "Config" and `config.yaml.example` first.
+browser. Read [ARCHITECTURE.md](../../ARCHITECTURE.md) "Config" and `config.yaml.example` first.
 
 ## T05 `atomicfile` and the `wire` host snapshot
 

@@ -1,3 +1,5 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Stage 5: CLI and Phase 1 deploy
 
 Goal: everything from [PLAN.md](../PLAN.md) Phase 1 that can be built and tested off the box, plus

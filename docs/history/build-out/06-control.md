@@ -1,7 +1,9 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Stage 6: Control plane
 
 Goal: Phases 2 and 3 of [PLAN.md](../PLAN.md). This is the one stage where a bug can mean "someone
-on the tailnet gets root on the box", so the rules in [CONTROL.md](../CONTROL.md) and
+on the tailnet gets root on the box", so the rules in [CONTROL.md](../../CONTROL.md) and
 STANDARDS section 4 "Privilege" are not optional, and every refusal path is tested before its happy
 path. Read CONTROL.md in full first. Decisions #14-#18, #31-#33, #36, #37, #52, #54, #62-#66.
 

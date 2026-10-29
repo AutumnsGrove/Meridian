@@ -1,7 +1,9 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Stage 4: Gateway and web
 
 Goal: a launcher in a browser, served by the real binary, that renders whatever the config says and
-nothing the code knows. Read [ARCHITECTURE.md](../ARCHITECTURE.md), [DESIGN.md](../DESIGN.md) and
+nothing the code knows. Read [ARCHITECTURE.md](../../ARCHITECTURE.md), [DESIGN.md](../../DESIGN.md) and
 open the files in `mockups/` at 390px wide; the mockups are the visual specification. Decisions #4,
 #6, #10, #34, #43, #54, #59.
 

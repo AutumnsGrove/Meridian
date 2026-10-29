@@ -141,7 +141,7 @@ or chord that changes which backend you get, because the primary device has no k
 
 Both open in the same tab. Empty input disables both buttons rather than doing something surprising.
 Once Polaris grows a URL parameter that starts an assistant turn rather than a search, "Ask Polaris"
-should point at that instead — noted in [PLAN.md](PLAN.md).
+should point at that instead — noted in [PLAN.md](history/PLAN.md).
 
 ## Control panel
 

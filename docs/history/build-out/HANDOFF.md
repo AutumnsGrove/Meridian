@@ -1,3 +1,5 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Handoff
 
 Read this first in every session. It is **rewritten, not appended**, at the end of each session; the

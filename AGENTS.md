@@ -14,21 +14,21 @@ privileged actions.
 The owner runs **one dedicated session per chunk of work** and clears context between them, because
 precision drops as context grows. So you do a bounded chunk, leave everything in a state where a
 brand-new session can pick up cold, and **stop**. The chunks are the numbered sessions (S1, S2, ...)
-in [docs/agent/TASKS.md](docs/agent/TASKS.md).
+in [docs/history/build-out/TASKS.md](docs/history/build-out/TASKS.md).
 
 ## Start here, every session (keep this cheap)
 
 Read only these, in order. Do not read the other stage documents or the whole design set.
 
-1. [docs/agent/HANDOFF.md](docs/agent/HANDOFF.md): where the last session stopped, what is next, any
+1. [docs/history/build-out/HANDOFF.md](docs/history/build-out/HANDOFF.md): where the last session stopped, what is next, any
    gotchas. Short by design.
 2. `git status` and `git log --oneline -10`. The tree should be clean; if it is not, the handoff says why.
-3. The block for your session in [docs/agent/TASKS.md](docs/agent/TASKS.md) (the session table at the
+3. The block for your session in [docs/history/build-out/TASKS.md](docs/history/build-out/TASKS.md) (the session table at the
    top), then the **stage document sections for those tasks only**.
 4. [docs/STANDARDS.md](docs/STANDARDS.md) (once per session; it is short on purpose).
 5. Anything a task explicitly cites (a decision number, a design doc section). Read just that part.
 
-Then work the session's tasks in order, following [docs/agent/README.md](docs/agent/README.md) "The
+Then work the session's tasks in order, following [docs/history/build-out/README.md](docs/history/build-out/README.md) "The
 loop". When the session's last task is done, run the **end-of-session ritual** in that file and stop.
 Do not roll into the next session because you feel fine: a fresh context is the point.
 
@@ -83,7 +83,7 @@ the next unblocked task, and never build on a guess.
 | Doc | Read when |
 |---|---|
 | [docs/STANDARDS.md](docs/STANDARDS.md) | always; how to write, test, fuzz, secure, commit |
-| [docs/agent/](docs/agent/README.md) | always; the loop and the task list |
+| [docs/agent/](docs/history/build-out/README.md) | always; the loop and the task list |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | before changing anything a decision covers |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | components, networking, polling model, config shape |
 | [docs/CONTROL.md](docs/CONTROL.md) | anything under `control`, `hostexec`, `hostprobe`, or `deploy/` |

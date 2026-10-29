@@ -287,7 +287,7 @@ through Dependabot and must pass `scripts/check all`.
 
 ## 10. Definition of done for a task
 
-A task in [docs/agent/TASKS.md](agent/TASKS.md) is done when:
+A task in [docs/history/build-out/TASKS.md](history/build-out/TASKS.md) is done when:
 
 1. The behaviours it lists have tests that were seen failing first.
 2. Any fuzz targets it lists exist, with seeds.
@@ -298,7 +298,7 @@ A task in [docs/agent/TASKS.md](agent/TASKS.md) is done when:
 6. The task is ticked in TASKS.md in its own small commit.
 
 Work happens in short sessions with a cleared context between them (decision #70); the rules for
-stopping cleanly are in [agent/README.md](agent/README.md).
+stopping cleanly are in [history/build-out/README.md](history/build-out/README.md).
 
 If a task needs the real homelab box (marked `[human]`), the agent writes the exact steps and leaves
 the box unticked for the owner.

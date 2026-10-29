@@ -1,3 +1,5 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Stage 8: Close-out
 
 The build is forward-looking: "what do I build next". Once it is built, the repo must be

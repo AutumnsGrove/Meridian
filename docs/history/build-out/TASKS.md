@@ -1,9 +1,11 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Tasks
 
 Progress lives here and nowhere else. Work is split into **sessions**: one session is one sitting with
 a fresh context, covering a small fixed group of tasks. Do your session's tasks in order, run the
 end-of-session ritual ([README.md](README.md)), and stop. A task is done per
-[STANDARDS.md](../STANDARDS.md) section 10. `[human]` tasks are never ticked by an agent.
+[STANDARDS.md](../../STANDARDS.md) section 10. `[human]` tasks are never ticked by an agent.
 
 ## Sessions
 

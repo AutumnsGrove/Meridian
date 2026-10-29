@@ -1,10 +1,12 @@
+> Historical: the plan this project was built from. Not maintained.
+
 # Plan
 
 Milestones in the order they should be built. Each one is independently deployable — the launcher
 is useful the day it exists, before any privileged code is written. Do not start a phase before the
 previous one's "done when" is true.
 
-The task-level work order that implements these phases is [agent/TASKS.md](agent/TASKS.md): Phase 1 is
+The task-level work order that implements these phases is [agent/TASKS.md](build-out/TASKS.md): Phase 1 is
 its stages 1-5, Phases 2 and 3 are stage 6, Phase 4 is stage 7. This file stays the definition of what
 "done" means for each phase. Two details here are superseded by decisions: the host-side scripts
 (`control.sh`, `probe.sh`, `control-run`) are the Go binary `meridian-host` (#52), and the Phase 1
@@ -29,11 +31,11 @@ names, ports, container names), and the control-plane design has been read end t
 fresh eyes.
 
 **Done** on 2026-10-23. The design landed at 71 recorded decisions, a standards document and a
-session-by-session work order ([agent/TASKS.md](agent/TASKS.md)), with mockups for every state.
+session-by-session work order ([agent/TASKS.md](build-out/TASKS.md)), with mockups for every state.
 Two things the original criterion was written before: the repo is public, and the build is split
 across short sessions (decisions #44, #70), so "done" was verified by the docs being testable
 rather than by one long read. The remaining design questions live in
-[OPEN-QUESTIONS.md](OPEN-QUESTIONS.md), not at the bottom of this file.
+[OPEN-QUESTIONS.md](../OPEN-QUESTIONS.md), not at the bottom of this file.
 
 ---
 
@@ -47,8 +49,8 @@ Goal: one URL worth bookmarking, with no privileged code in the tree at all.
   errors, SIGHUP hot reload, and `meridian doctor`
 - **Portability fixture test**: a config of services this homelab has never heard of renders
   correctly, so no service-specific assumption can leak into the code (see
-  [DECISIONS.md](DECISIONS.md) #38–42)
-- `network_mode: host` in the compose file from day one — see [ARCHITECTURE.md](ARCHITECTURE.md)
+  [DECISIONS.md](../DECISIONS.md) #38–42)
+- `network_mode: host` in the compose file from day one — see [ARCHITECTURE.md](../ARCHITECTURE.md)
   "Networking"; getting this wrong later means every probe URL has to change at once
 - `meridian-probe.timer` + `probe.sh` writing `status/host.json` (unit states, tailscale, uptime),
   generated from the target list so nothing is controllable that isn't observable
@@ -77,7 +79,7 @@ page that reads some health endpoints on the local network.
   leaves the previous config serving
 - Ivy's vital number is correct (needs-attention count cross-checked against the app's own UI)
 - No probe is visible in the service's own logs as an error (the Ivy `Host` header detail in
-  [INTEGRATIONS.md](INTEGRATIONS.md) matters here)
+  [INTEGRATIONS.md](../INTEGRATIONS.md) matters here)
 - Runs under Docker Compose on the potato, `restart: unless-stopped`, bound to loopback, reachable
   at `https://lepotato.taild95077.ts.net:8891` through `tailscale serve`
 
@@ -113,7 +115,7 @@ Goal: prove the privileged path end to end against the least dangerous target.
 
 ## Phase 3 — Control plane, all targets
 
-- The full matrix in [CONTROL.md](CONTROL.md): AdGuard, Unbound, Polaris (+ SearXNG), Ivy,
+- The full matrix in [CONTROL.md](../CONTROL.md): AdGuard, Unbound, Polaris (+ SearXNG), Ivy,
   Vaultwarden, bwmon, her-go, Meridian itself, the host
 - Per-target update via each app's own updater (`systemctl start polaris-update.service`,
   `ivy-update.service`, `her update` as the deploy user, `bwmon update` as the deploy user,
