@@ -110,7 +110,7 @@ The container never gets the Docker socket, root, `systemctl` or a shell. Read
 | [docs/DECISIONS.md](docs/DECISIONS.md) | The decision log, with the alternatives that were rejected and why |
 | [docs/REVIEW-BRIEF.md](docs/REVIEW-BRIEF.md) | What is load-bearing, the trust boundaries and the review lanes |
 | [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) | Questions awaiting the owner's answer |
-| [docs/history/](docs/history/PLAN.md) | The plan and build-out work order, archived and not maintained |
+| [docs/history/](docs/history/PLAN.md) | The plan and the work order that built it, archived and not maintained |
 | [config.yaml.example](config.yaml.example) | Generic config template: every probe shape and the full vocabulary |
 | [examples/homelab.yaml](examples/homelab.yaml) | This homelab's worked config |
 

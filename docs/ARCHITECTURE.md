@@ -39,10 +39,10 @@ never gets to run a command it was not explicitly allowlisted for.
 ```
 
 > **Implementation notes (decisions #51, #52, #63).** Go packages live under `internal/`. The host
-> side (`control-run`, `control.sh`, `probe.sh` in the diagram above) is one stdlib-only Go binary,
-> `meridian-host`, with subcommands `exec`, `probe`, `update` and `targets`. The container's
-> writable control area is a single `control/inbox/` mount; results and the audit log are in a
-> read-only `control/outbox/`. Where this document and a decision disagree, the decision wins.
+> side is one stdlib-only Go binary, `meridian-host`, with the subcommands `exec`, `probe`, `update`
+> and `render-units`. The container's writable control area is a single `control/inbox/` mount;
+> results and the audit log are in a read-only `control/outbox/`. Where this document and a decision
+> disagree, the decision wins.
 
 ## Networking
 
@@ -90,7 +90,7 @@ than 90s the affected tiles go stale rather than green — a dead probe must nev
 }
 ```
 
-The unit list in that script is seeded by `install.sh` from `deploy/observe.example.json` (which
+The unit list is seeded by `install.sh` from `deploy/observe.example.json` (which
 includes `meridian-control.path`); adding a target's unit to `/etc/meridian/observe.json` is part of
 the adding-a-target checklist in [CONTROL.md](CONTROL.md), so a target is not controllable while
 invisible by accident.
@@ -99,13 +99,14 @@ invisible by accident.
 
 | Package / dir | Responsibility | Constraint |
 |---|---|---|
-| `cmd/` | cobra CLI: `run`, `version`, `doctor`, `update`, `restart` | no privileged calls |
-| `config/` | load `config.yaml`, env overrides, validate against the schema, hot reload | unknown probe/vital kinds and undeclared sections are startup errors, not silent skips |
-| `doctor/` | resolve config, check control targets, probe once, explain what's wrong | reads only, never mutates |
-| `probe/` | health + vitals, per-service goroutines, TTL cache, reads `status/host.json` | a failing probe must never block the page (see below) |
-| `control/` | request/result file protocol, audit read, busy state | never constructs a command; only `{action, target, ack}` |
-| `updater/` | resolve latest GHCR digest, hand off to the watcher | never pulls or recreates anything itself |
-| `gateway/` | HTTP routes, static embed, JSON | `/api/control` is the only mutating route |
+| `cmd/` | thin mains: `meridian` (`run`, `doctor`, `healthcheck`, `version`) and `meridian-host` (`exec`, `probe`, `update`, `render-units`) | no privileged calls on the container side |
+| `internal/config/` | load `config.yaml`, env references, validate against the schema, hot reload | unknown probe/vital kinds and undeclared sections are startup errors, not silent skips |
+| `internal/doctor/` | resolve config, check control targets, probe once, explain what's wrong | reads only, never mutates |
+| `internal/probe/` | health + vitals, per-service goroutines, TTL cache, reads `status/host.json` | a failing probe must never block the page (see below) |
+| `internal/control/` | request/result file protocol, audit read, busy state | never constructs a command; only `{action, target, ack}` |
+| `internal/updater/` | resolve latest GHCR digest, write the host handoff | never pulls or recreates anything itself |
+| `internal/gateway/` | HTTP routes, static embed, JSON | `/api/control` is the only mutating route |
+| `internal/hostexec/`, `internal/hostprobe/`, `internal/hostfile/` | the privileged host side: allowlist, command table, execution, host snapshot | standard library only; the only code that runs a command |
 | `web/` | SvelteKit app, adapter-static, `go:embed` | no Node at runtime |
 
 ## Polling model
@@ -191,8 +192,9 @@ live, with a banner on the page saying so.
 ### Portability check (a test, not a promise)
 
 One test loads `examples/` plus a fixture config describing services this homelab has never heard of
-(`gitea`, `jellyfin`, a raw TCP port, a service with no web UI at all) and asserts the page renders
-them. If any service-specific assumption leaks into Go or Svelte, that test fails.
+(`gitea`, `jellyfin`, a raw TCP port, a service with no web UI at all), validates it, and builds the
+`/api/status` contract from it. If any service-specific assumption leaks into Go or Svelte, that test
+fails.
 
 ## Files on disk (potato)
 
@@ -200,7 +202,7 @@ them. If any service-specific assumption leaks into Go or Svelte, that test fail
 ~/Meridian/
 ├── config.yaml                 # probe definitions; no secrets beyond env references
 ├── .env                        # credentials (referenced by env var name), image digest pin
-├── docker-compose.yml          # network_mode: host, one loopback publish
+├── docker-compose.yml          # network_mode: host; the gateway binds 127.0.0.1:8891
 ├── control/
 │   ├── inbox/                  # the container's ONLY writable control mount (decision #63)
 │   │   ├── tmp/                #   write here first, then rename into queue/ (same mount: atomic)
@@ -210,17 +212,17 @@ them. If any service-specific assumption leaks into Go or Svelte, that test fail
 │       └── audit.jsonl         #   append-only, kept 365 days
 ├── status/
 │   └── host.json               # mounted ro, written by meridian-probe.timer
-├── update-signal/              # mounted rw — self-update handoff (Polaris/Ivy pattern)
-└── data/                       # hub's own state if it ever needs any (none planned: no DB)
+└── update-signal/              # mounted rw — self-update handoff (Polaris/Ivy pattern)
 
 /etc/meridian/                  # root-owned, outside the repo, never mounted
 ├── targets.json                # the allowlist
 ├── observe.json                # observation-only units, if any (decision #61)
-└── meridian-host               # the host binary: exec, probe, update, targets
+├── host.json                   # the executor's own config: control dir and deploy user
+└── meridian-host               # the host binary: exec, probe, update, render-units
 ```
 
-Nothing else from the host is mounted. Not the repo (so a compromised container cannot rewrite the
-watcher script), not `/etc/meridian` (so it cannot widen its own allowlist), not the Docker socket.
+Nothing else from the host is mounted. Not the repo, not `/etc/meridian` (so it can neither widen
+its own allowlist nor replace the host binary), not the Docker socket.
 
 **Ownership:** the container runs as `${MERIDIAN_UID}:${MERIDIAN_GID}` (the deploy user, written by
 `install.sh`), the same convention Ivy uses, so the queue/results directories are writable without

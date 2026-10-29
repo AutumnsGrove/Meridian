@@ -1,22 +1,16 @@
 # Control plane
 
-The privileged half of Meridian. Read this before changing anything under `control/`, `compose/watcher/`
-or `/etc/meridian`.
+The privileged half of Meridian. Read this before changing anything under `internal/control`,
+`internal/hostexec`, `internal/hostprobe` or `deploy/`.
 
-> **Implementation notes (decisions #52, #62-#67).** The executor is `meridian-host exec`, a
-> stdlib-only Go binary installed root-owned at `/etc/meridian/meridian-host`; it replaces the
-> `control-run` script and `compose/watcher/control.sh` named below (the allowlist, the request
-> protocol and every guard are unchanged). The sudoers rule is the single command
+> **Implementation (decisions #52, #62-#67).** The executor is `meridian-host exec`, a stdlib-only Go
+> binary installed root-owned at `/etc/meridian/meridian-host`. The sudoers rule is the single command
 > `/etc/meridian/meridian-host exec` with no arguments. The container's writable control area is
 > `control/inbox/{tmp,queue}`; results and the audit log are in `control/outbox/`, mounted read-only,
-> and the executor prunes both. Self-update is the `meridian-host update` subcommand. Where the
-> prose below says `control/queue`, `control/queue-tmp`, `control/results` or `control/audit.jsonl`,
-> read `control/inbox/queue`, `control/inbox/tmp`, `control/outbox/results` and
-> `control/outbox/audit.jsonl`; `update/requested` is `update-signal/requested`. The build-out task docs in `docs/agent/06-control.md` are the
-> detailed specification of the implementation. The container serves two routes: `POST /api/control`
-> writes one request, and `GET /api/control/status` reads the queue, the recent results, the audit
-> tail and any running auto-restore. Nothing polls an individual result file; the page polls that
-> status route.
+> and the executor prunes both. Self-update is the `meridian-host update` subcommand. The container
+> serves two routes: `POST /api/control` writes one request, and `GET /api/control/status` reads the
+> queue, the recent results, the audit tail and any running auto-restore. Nothing polls an individual
+> result file; the page polls that status route.
 
 ## Threat model, stated plainly
 
@@ -49,17 +43,17 @@ The container writes one file; the host writes one back. Both directions are JSO
 which is the same pattern Polaris and Ivy already use for their update handoff.
 
 ```
-container                                      host
-   │ POST /api/control                          │
-   │ → control/queue/<id>.json                  │
-   │                                            │ meridian-control.path (DirectoryNotEmpty)
-   │                                            │ → meridian-control.service (oneshot)
-   │                                            │ → compose/watcher/control.sh
-   │                                            │     flock -n (bail if already running)
-   │                                            │     sudo -n /etc/meridian/control-run <file>
-   │                                            │ → control/results/<id>.json
-   │ GET /api/control/status ───────────────────►│
-   │ (1s while pending, otherwise every 10s)    │
+container                                        host
+   │ POST /api/control                            │
+   │ → control/inbox/queue/<id>.json              │
+   │                                              │ meridian-control.path (DirectoryNotEmpty)
+   │                                              │ → meridian-control.service (oneshot)
+   │                                              │ → sudo -n /etc/meridian/meridian-host exec
+   │                                              │     lock /run/lock/meridian-control.lock
+   │                                              │     validate, decide, run one command
+   │ → control/outbox/results/<id>.json           │
+   │ GET /api/control/status ────────────────────►│
+   │ (1s while pending, otherwise every 10s)      │
 ```
 
 **Request** (written by the container, never trusted):
@@ -95,11 +89,12 @@ Rules for both files:
 
 - **Every JSON file is written to a temp path and `rename(2)`d into place**, never written in situ.
   This matters most for the request: `meridian-control.path` uses `DirectoryNotEmpty=`, so it fires the
-  moment a filename appears in `control/queue/` — possibly while the container is still writing
-  bytes. The container therefore writes `control/queue-tmp/<id>.json` and renames it into
-  `control/queue/<id>.json` (same filesystem, so the rename is atomic), and the executor treats an
+  moment a filename appears in `control/inbox/queue/` — possibly while the container is still writing
+  bytes. The container therefore writes `control/inbox/tmp/<id>.json` and renames it into
+  `control/inbox/queue/<id>.json` (same mount, so the rename is atomic), and the executor treats an
   unparseable file as an error rather than retrying blindly. The same rule applies to
-  `results/<id>.json` and `status/host.json`, for the readers rather than the `.path` units.
+  `control/outbox/results/<id>.json` and `status/host.json`, for the readers rather than the `.path`
+  units.
 - File name is `<id>.json`; the id inside must match the name, must parse as a UUID, and must not
   have been seen before (results are kept, so a replay is detectable).
 - Requests older than 120s are refused as stale with `ok:false, note:"stale request"` — a queue that
@@ -110,8 +105,8 @@ Rules for both files:
   is a convenience, not a command buffer.
 - `output` is capped at 4KiB from the tail; the executor's full output goes to the journal
   (`journalctl -u meridian-control.service`).
-- The request file is deleted by `control.sh` once the executor has exited, success or failure. The
-  result file stays until Meridian prunes results older than 7 days.
+- The request file is deleted by `meridian-host exec` once the command has exited, success or
+  failure. The result file stays until the executor prunes results older than 7 days.
 
 ## The allowlist
 
@@ -181,13 +176,14 @@ behind. The next update, invoked by the service's own CLI as `autumn`, then fail
 | `update.kind: unit` | root (via systemctl) | the oneshot unit already declares its own `User=` |
 | `update.kind: self` | deploy user | `docker` group; the command re-executes `meridian-host update` as the same user and must never leave root-owned files in `~/Meridian` |
 
-Implementation: `setpriv --reuid=… --regid=… --init-groups` (or `runuser -u`) for the deploy-user
-cases, with an explicit `PATH` including `/usr/local/bin` — Go lives there on this box
-(`go1.26.5`), and the deploy user's interactive `PATH` is not what a systemd oneshot inherits.
+Implementation: the command runs with a `syscall.Credential` (uid, gid and the account's groups) for
+the deploy-user cases, and an explicit minimal environment (`PATH` including `/usr/local/bin`, `HOME`,
+`LANG`) — Go lives in `/usr/local/bin` on this box, and the deploy user's interactive `PATH` is not
+what a systemd oneshot inherits.
 
 ## The action matrix
 
-What v1 should allow. This table is the design; `targets.json` is the implementation.
+What the control plane allows. This table is the design; `targets.json` is the implementation.
 
 | Target | Kind | start | stop | restart | update | Notes |
 |---|---|---|---|---|---|---|
@@ -206,13 +202,13 @@ Two entries that must **not** appear: `polaris.service` (the stale bare-metal un
 the Compose migration — `disabled` since 2026-08-16) and anything under `polaris-codeexec`, which is
 Polaris's own privilege boundary and not the hub's business.
 
-**Vaultwarden's update needs a compose definition first** (planned: Phase 3). It was started with
-`docker run`, so there is nothing to recreate from and `docker restart` after a pull keeps running
-the *old* image. The Phase 3 task captures the current run spec as a compose file in the homelab
-repo — `docker inspect` gives the env (`WEBSOCKET_ENABLED`, `DOMAIN`, `SIGNUPS_ALLOWED`), the
-`8081→80` mapping, the `unless-stopped` policy and the `/home/autumn/vaultwarden/data` bind — and
-then Vaultwarden becomes an ordinary compose target like Ivy. Until that lands, its update action
-is absent rather than half-working.
+**Vaultwarden's update is disabled until its run spec is captured as a compose file.** It was
+started with `docker run`, so `docker restart` after a pull would keep running the *old* image. Its
+`start`, `stop` and `restart` are ordinary compose actions; enabling `update` needs the current run
+spec written out as a compose file in the homelab repo — `docker inspect` gives the env
+(`WEBSOCKET_ENABLED`, `DOMAIN`, `SIGNUPS_ALLOWED`), the `8081→80` mapping, the `unless-stopped` policy
+and the `/home/autumn/vaultwarden/data` bind. The allowlist carries the reason in
+`no_update_reason`, so the button renders disabled and says why.
 
 ## Guards
 
@@ -283,8 +279,8 @@ Self-update follows Ivy's hardening, not a loose version of it:
 
 ## Audit log
 
-`~/Meridian/control/audit.jsonl`, appended only by the executor (one JSON object per line, flush on
-write). Mounted read-only to the container, which renders the last 50 in the control view.
+`~/Meridian/control/outbox/audit.jsonl`, appended only by the executor (one JSON object per line,
+flush on write). Mounted read-only to the container, which renders the last 50 in the control view.
 
 ```json
 {"at":"2026-10-23T18:04:16Z","id":"0192f0c4-…","action":"restart","target":"bwmon","ok":true,"duration_ms":4820,"by":"tailnet","output":"active (running) after 2.1s"}
@@ -294,14 +290,14 @@ write). Mounted read-only to the container, which renders the last 50 in the con
 means the field exists if authentication ever does, and it makes the absence deliberate rather than
 accidental. The log is append-only and never rewritten by the container.
 
-**Retention: 365 days, then purged.** `control.sh` prunes expired lines at the top of each run
-(a single `jq -c` pass; a year of personal-scale actions is a few hundred KB, so the rewrite is
-cheap and never in the hot path of the action itself). The container's read-only view filters to the
-same window, so the page cannot show a row the file is about to lose.
+**Retention: 365 days, then purged.** The executor prunes expired lines at the top of each run (one
+pass over the file; a year of personal-scale actions is a few hundred KB, so the rewrite is cheap and
+never in the hot path of the action itself). The container's read-only view filters to the same
+window, so the page cannot show a row the file is about to lose.
 
 ## Measured on the box
 
-Phase 2, 2026-10-28, `lepotato` (aarch64, systemd 257, Docker 29.6):
+2026-10-28, `lepotato` (aarch64, systemd 257, Docker 29.6):
 
 - `restart bwmon` from the container's `POST /api/control` to the result file being readable by the
   page: **831 ms**, of which the executor spent **165 ms** in `systemctl restart bwmon.service` and
@@ -314,16 +310,17 @@ Phase 2, 2026-10-28, `lepotato` (aarch64, systemd 257, Docker 29.6):
 
 ## Concurrency, limits, timeouts
 
-- One action at a time, globally. `control.sh` takes `flock -n` and exits immediately if another run
-  holds it — the request stays queued and the next `.path` trigger picks it up, exactly as Polaris's
-  `codeexec.sh` does.
+- One action at a time, globally. `meridian-host exec` takes an exclusive lock on
+  `/run/lock/meridian-control.lock` and exits immediately if another run holds it — the request stays
+  queued and the next `.path` trigger picks it up, exactly as Polaris's `codeexec.sh` does.
 - Maximum queue depth 8. Beyond that the UI refuses to enqueue rather than piling up stale requests.
 - The UI's wait for a result is 90s (updates can legitimately take longer — those show as "still
   running, see audit log" and keep polling in the background).
-- `meridian-control.service` gets `TimeoutStartSec` larger than the slowest legitimate action
-  (~600s, dominated by a slow registry pull) and `StartLimitIntervalSec=0`, because the `.path` unit
-  can fire faster than a oneshot finishes and systemd's default start limit would otherwise disable
-  the unit silently — this exact failure cost Polaris a `code_exec` call for ~23 hours on 2026-09-17.
+- `meridian-control.service` gets `TimeoutStartSec=660s`, larger than the executor's own 600s per-command
+  ceiling, so systemd outlives the slowest legitimate action (a registry pull) instead of killing a
+  healthy run mid-update; `StartLimitIntervalSec=0` because the `.path` unit can fire faster than a
+  oneshot finishes and systemd's default start limit would otherwise disable the unit silently — this
+  exact failure cost Polaris a `code_exec` call for ~23 hours on 2026-09-17.
 
 ## Adding a target (checklist)
 

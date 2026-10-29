@@ -87,8 +87,8 @@ Rules:
 - **Do not delete or weaken a failing test to make the build pass.** A red test is information. If
   the test is wrong, say why in the commit message.
 - A bug fix starts with a test that reproduces the bug.
-- This is not a test matrix. The task docs list behaviours and edge cases worth covering as a
-  starting point; thinking of more is part of the job.
+- This is not a test matrix. The doc for the area lists behaviours and edge cases worth covering as
+  a starting point; thinking of more is part of the job.
 
 Frontend: same order. Pure logic in `.ts` modules gets Vitest tests first; components get
 Testing Library tests for behaviour a user can see (text, roles, disabled state); one Playwright
@@ -125,7 +125,8 @@ functions with a property that should hold for all inputs.
 ## 4. Security standards
 
 The project's hard constraints live in [CLAUDE.md](../CLAUDE.md) and are mechanically enforced by the
-invariants test (task T03). The rules below are what to do inside them.
+invariants test ([internal/invariants](../internal/invariants/)). The rules below are what to do
+inside them.
 
 **Inputs and parsing**
 - All external input (HTTP bodies, query strings, request files, probe responses, config, `host.json`)
@@ -240,10 +241,10 @@ read-only root filesystem, all capabilities dropped, `no-new-privileges`, pinned
 
 ## 8. CI
 
-One entry point, shared by hands and machines: **`scripts/check [go|web|e2e|security|all] [--fast]`**.
-CI jobs call the same script, so green locally means green in CI. `--fast` is what the pre-commit
-hook runs (format, vet, lint, `go test` including fuzz seeds, web unit tests); it excludes the
-slow jobs.
+One entry point, shared by hands and machines: **`scripts/check [go|web|e2e|fuzz|security|all]
+[--fast]`**. CI jobs call the same script, so green locally means green in CI. `--fast` is what the
+pre-commit hook runs (format, vet, lint, `go test` including fuzz seeds, web unit tests); it excludes
+the slow jobs.
 
 Workflows (`.github/workflows/`):
 
@@ -251,7 +252,7 @@ Workflows (`.github/workflows/`):
 |---|---|---|
 | `ci.yml` | push to `main`, manual | `go` (gofmt, vet, golangci-lint, `go test -race -shuffle=on`, build both binaries), `web` (frozen install, `svelte-check`, eslint, prettier, vitest, build), `fuzz-smoke` (`scripts/check fuzz` with `FUZZ_TIME=20s`), `e2e` (Playwright against the real binary), `security`, `image` (build, no push, scan) |
 | `fuzz-long.yml` | weekly cron, manual | `scripts/check fuzz` with `FUZZ_TIME=10m`, uploads crashers as an artifact |
-| `release.yml` | added in Phase 4 | multi-arch image to GHCR by digest, host binary + `SHA256SUMS` as release assets |
+| `release.yml` | a successful CI run on `main`, a `v*` tag | multi-arch image to GHCR by digest with provenance and an SBOM (`:latest` for main, `:vX.Y.Z` for a tag), plus the two host binaries, `SHA256SUMS` and the GitHub release on a tag |
 
 `security` job: `govulncheck`, `gitleaks`, `pnpm audit --prod`, `actionlint`, `shellcheck` (for the
 few shell files), and Trivy on the built image.
@@ -261,7 +262,9 @@ third-party actions pinned to a full commit SHA with the version in a comment; n
 `pull_request_target`; no secrets in `ci.yml`; `concurrency` cancels superseded runs of the same ref;
 Dependabot (weekly, grouped) for `gomod`, `npm`, `github-actions` and `docker`.
 
-There is no review workflow in this phase of the project (decision #50).
+There is no automated review workflow (decision #50); review reads [REVIEW-BRIEF.md](REVIEW-BRIEF.md)
+and appends findings to the pull request or the issue. A PR reviewer built on Pi and an OpenRouter
+key is described in the archived close-out notes and is not part of the repo.
 
 ## 9. Dependencies
 
@@ -285,20 +288,16 @@ Adding anything else needs a new decision entry saying what it replaces and why 
 library or existing dependency is not enough. Versions are pinned by the lockfiles; upgrades arrive
 through Dependabot and must pass `scripts/check all`.
 
-## 10. Definition of done for a task
+## 10. Definition of done for a change
 
-A task in [docs/history/build-out/TASKS.md](history/build-out/TASKS.md) is done when:
-
-1. The behaviours it lists have tests that were seen failing first.
-2. Any fuzz targets it lists exist, with seeds.
-3. `scripts/check` is green.
+1. The behaviours it touches have tests that were seen failing first.
+2. Any fuzz target for code it changes still passes; new parsers and security-boundary validators
+   come with one, seeded.
+3. `scripts/check all` is green (the pre-commit hook runs `--fast`; the pre-push hook runs all).
 4. No service-specific string or privilege-boundary rule was violated (the invariants test says so).
 5. Docs that the change made false are corrected in the same commit series, and any new design choice
-   is appended to DECISIONS.md.
-6. The task is ticked in TASKS.md in its own small commit.
+   is appended to [DECISIONS.md](DECISIONS.md).
+6. The commit series is small, each commit green on its own, and no crasher is left untriaged.
 
-Work happens in short sessions with a cleared context between them (decision #70); the rules for
-stopping cleanly are in [history/build-out/README.md](history/build-out/README.md).
-
-If a task needs the real homelab box (marked `[human]`), the agent writes the exact steps and leaves
-the box unticked for the owner.
+A change that needs the real homelab box is written so the owner can run it: exact steps, a way to
+see it worked, and nothing run against the live box on their behalf.

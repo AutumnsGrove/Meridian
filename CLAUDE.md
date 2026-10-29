@@ -6,7 +6,7 @@ from a phone. Go backend, SvelteKit frontend embedded in one binary, a distroles
 small root-owned host binary for privileged actions.
 
 **Status: maintained.** The design is settled and the docs below are the source of truth;
-[docs/DECISIONS.md](docs/DECISIONS.md) records why each choice was made. The plan and its build-out
+[docs/DECISIONS.md](docs/DECISIONS.md) records why each choice was made. The plan and the work order that
 work order are archived under [docs/history/](docs/history/PLAN.md) and are not maintained.
 
 ## Hard constraints — do not violate these

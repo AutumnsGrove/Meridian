@@ -153,3 +153,13 @@ rules are in [STANDARDS.md](STANDARDS.md); the work order is [agent/TASKS.md](ag
   tailnet ever gains users who aren't the owner.
 - **Meridian being down breaks nothing.** It is a single point of discovery, not of service. That
   asymmetry is what keeps this design small, and it should be preserved rather than quietly eroded.
+
+---
+
+**Maintenance note, 2026-10-28.** The build is over and the entries above stay as they were written.
+Nothing was reversed. Three later entries amend earlier ones and are worth reading together: #52
+changes the *implementation* of #14, #15 and #27 without touching the allowlist, the protocol or the
+root-owned location; #79 widens the unit-name grammar to accept `.path`; #93 replaces #68's
+`meridian-host targets` spelling with the `cat` pipe, because that subcommand was never built. The
+plan and the session work order that produced all of this now live under `docs/history/` and are not
+maintained.
