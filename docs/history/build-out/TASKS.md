@@ -105,7 +105,7 @@ service, P3 = all targets, P4 = self-update and install.
 ## Stage 8: Close-out ([08-closeout.md](08-closeout.md))
 
 - [x] **T38** Review brief for the end-of-build whole-codebase review (deps: all code tasks)
-- [ ] **T39** Maintenance rewrite of the docs, archive the build-out scaffolding (deps: T38; last)
+- [x] **T39** Maintenance rewrite of the docs, archive the build-out scaffolding (deps: T38; last)
 - [ ] **T40** Optional: PR review workflow with Pi and OpenRouter (deps: T39)
 
 Phase 5 (homelab repo documentation) is out of this repo; T39 leaves a checklist for it.

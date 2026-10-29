@@ -5,8 +5,9 @@ one is actually up, and — when something needs a kick — lets you restart, up
 finding the right SSH command at the wrong moment.
 
 **Status: built, deployed, maintained.** Two binaries, one container and a root-owned host side, all
-released from this repo. The design is in [docs/](docs/ARCHITECTURE.md); the rules for changing it are
-in [docs/STANDARDS.md](docs/STANDARDS.md).
+released from this repo. The design is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), the decisions
+behind it in [docs/DECISIONS.md](docs/DECISIONS.md), and the rules for changing it in
+[docs/STANDARDS.md](docs/STANDARDS.md).
 
 Named after the line that passes overhead: the reference you measure everything else against. The
 sibling projects are Polaris (a fixed star you navigate by) and Ivy (the mail client); Meridian is
@@ -30,12 +31,13 @@ renders the units and the sudoers rule and validates them with `systemd-analyze`
 enables the probe timer and the control watcher and prints a pass/fail table. It never overwrites an
 existing `config.yaml`, `targets.json`, `observe.json`, compose file or `.env`.
 
-`sudo deploy/install.sh --dry-run` prints the whole plan without changing anything, and
-`--host-binary dist/meridian-host` installs a binary you built yourself. Then:
+`sudo deploy/install.sh --dry-run --version vX.Y.Z` prints the whole plan without changing anything,
+and `sudo deploy/install.sh --host-binary dist/meridian-host` installs a binary you built yourself.
+Then:
 
 ```bash
 $EDITOR ~/Meridian/config.yaml               # your services, sections and probes
-sudo $EDITOR /etc/meridian/targets.json      # what the control page may act on
+sudoedit /etc/meridian/targets.json          # what the control page may act on
 cd ~/Meridian && docker compose up -d
 tailscale serve --bg --https=8891 http://127.0.0.1:8891
 ```

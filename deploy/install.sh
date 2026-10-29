@@ -6,7 +6,7 @@
 # system's own tools, and then verifies that the probe and the queue watcher are alive. The digest
 # for the first image is resolved from GHCR unless --image-digest says it, so .env starts pinned.
 #
-# Run it from a checkout of this repo: the templates and examples are read from ./deploy.
+# Run it from a checkout of this repo: the templates and examples are read from that checkout.
 # It refuses to run as a non-root user; use sudo. --dry-run prints every action and changes nothing.
 
 set -euo pipefail
@@ -43,7 +43,7 @@ usage: install.sh [flags]
   --dry-run              print what would happen and change nothing
   -h, --help             show this help
 
-One of --host-binary or --version is required. Run it with sudo from the repo's deploy/ directory.
+One of --host-binary or --version is required. Run it with sudo from a checkout of this repo.
 EOF
 }
 
@@ -192,7 +192,7 @@ if [ -z "$image_tag" ]; then
 fi
 
 repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-[ -f "$repo_root/deploy/docker-compose.yml" ] || die "run install.sh from the repo's deploy/ directory"
+[ -f "$repo_root/deploy/docker-compose.yml" ] || die "run install.sh from a checkout of this repo"
 [ -f "$repo_root/deploy/systemd/meridian-control.path" ] || die "$repo_root/deploy does not have the unit templates"
 
 if [ -z "$deploy_dir" ]; then
