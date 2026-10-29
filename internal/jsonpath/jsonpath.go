@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"math"
+	"math/big"
 	"strings"
 )
 
@@ -139,12 +140,18 @@ func finite(value float64) (float64, bool) {
 }
 
 // Equal compares two decoded values with no coercion: numbers to numbers, strings to strings,
-// booleans to booleans, and nil to nil. Objects and arrays are never equal to anything.
+// booleans to booleans, and nil to nil. Objects and arrays are never equal to anything. Two number
+// literals that do not fit a float64 compare by the exact value they denote, so a value is always
+// equal to itself, however large it is.
 func Equal(got, want any) bool {
 	gotNumber, gotIsNumber := Number(got)
 	if gotIsNumber {
 		wantNumber, wantIsNumber := Number(want)
 		return wantIsNumber && gotNumber == wantNumber
+	}
+	if gotLiteral, ok := got.(json.Number); ok {
+		wantLiteral, ok := want.(json.Number)
+		return ok && equalNumberLiterals(gotLiteral, wantLiteral)
 	}
 
 	switch value := got.(type) {
@@ -159,6 +166,18 @@ func Equal(got, want any) bool {
 	default:
 		return false
 	}
+}
+
+// equalNumberLiterals compares numbers that are outside the float64 range by the exact value their
+// literals denote. Both sides are decoded JSON numbers, so parsing should always succeed; if it does
+// not, falling back to literal equality keeps reflexivity, which is the property that matters.
+func equalNumberLiterals(got, want json.Number) bool {
+	left, leftOK := new(big.Rat).SetString(got.String())
+	right, rightOK := new(big.Rat).SetString(want.String())
+	if !leftOK || !rightOK {
+		return got.String() == want.String()
+	}
+	return left.Cmp(right) == 0
 }
 
 // arrayIndex parses a non-negative decimal array index. Strings such as "+1" or "1e3" are not

@@ -196,6 +196,33 @@ func TestEqual_IsTypeAwareAndCoercesNothing(t *testing.T) {
 	}
 }
 
+// TestEqual_ComparesNumbersTooLargeForFloat64 is the crasher the fuzzer found: 1E700 has no float64,
+// and Equal must still be reflexive there and compare by the value the literal denotes.
+func TestEqual_ComparesNumbersTooLargeForFloat64(t *testing.T) {
+	tests := []struct {
+		name  string
+		got   string
+		want  string
+		equal bool
+	}{
+		{"the same literal", "1E700", "1E700", true},
+		{"the same value spelled differently", "1E700", "10E699", true},
+		{"different huge values", "1E700", "1E701", false},
+		{"huge against an ordinary number", "1E700", "1", false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, want := decode(t, test.got), decode(t, test.want)
+			if equal := jsonpath.Equal(got, want); equal != test.equal {
+				t.Errorf("Equal(%s, %s) = %v, want %v", test.got, test.want, equal, test.equal)
+			}
+			if equal := jsonpath.Equal(want, got); equal != test.equal {
+				t.Errorf("Equal(%s, %s) = %v, want %v (symmetric)", test.want, test.got, equal, test.equal)
+			}
+		})
+	}
+}
+
 func TestElements_ReturnsArraysOnly(t *testing.T) {
 	doc := decode(t, `{"list": [1, 2, 3], "object": {}, "empty": []}`)
 
