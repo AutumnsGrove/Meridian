@@ -1,92 +1,134 @@
 # Agents
 
-Entry point for any coding agent working in this repo. `CLAUDE.md` carries the same hard
-constraints; this file adds the build-out workflow. If the two ever disagree, `CLAUDE.md` wins and
-the disagreement is a bug to log in `docs/OPEN-QUESTIONS.md`.
+Entry point for any coding agent working in this repo. [CLAUDE.md](CLAUDE.md) carries the hard
+constraints and they are not negotiable; this file adds the maintenance workflow. If the two ever
+disagree, `CLAUDE.md` wins and the disagreement is a bug to log in
+[docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md).
 
 Meridian is a personal homelab dashboard: one page linking to every self-hosted service, showing
 whether each is up, and letting its owner restart, update or stop them from a phone. Go backend,
-SvelteKit frontend embedded in one binary, a Docker container, and a small root-owned host binary for
-privileged actions.
-
-## How work is split: one session, one chunk
-
-The owner runs **one dedicated session per chunk of work** and clears context between them, because
-precision drops as context grows. So you do a bounded chunk, leave everything in a state where a
-brand-new session can pick up cold, and **stop**. The chunks are the numbered sessions (S1, S2, ...)
-in [docs/history/build-out/TASKS.md](docs/history/build-out/TASKS.md).
-
-## Start here, every session (keep this cheap)
-
-Read only these, in order. Do not read the other stage documents or the whole design set.
-
-1. [docs/history/build-out/HANDOFF.md](docs/history/build-out/HANDOFF.md): where the last session stopped, what is next, any
-   gotchas. Short by design.
-2. `git status` and `git log --oneline -10`. The tree should be clean; if it is not, the handoff says why.
-3. The block for your session in [docs/history/build-out/TASKS.md](docs/history/build-out/TASKS.md) (the session table at the
-   top), then the **stage document sections for those tasks only**.
-4. [docs/STANDARDS.md](docs/STANDARDS.md) (once per session; it is short on purpose).
-5. Anything a task explicitly cites (a decision number, a design doc section). Read just that part.
-
-Then work the session's tasks in order, following [docs/history/build-out/README.md](docs/history/build-out/README.md) "The
-loop". When the session's last task is done, run the **end-of-session ritual** in that file and stop.
-Do not roll into the next session because you feel fine: a fresh context is the point.
+SvelteKit frontend embedded in one binary, a distroless container, and a small root-owned host binary
+for privileged actions. The design is settled; [docs/DECISIONS.md](docs/DECISIONS.md) says why.
 
 ## The five rules that matter most
 
-1. **Test first, watch it fail, then implement.** Small commits, each one green under
-   `scripts/check --fast`.
+1. **Test first, watch it fail, then implement.** Small commits, each green under
+   `scripts/check --fast`, the full `scripts/check all` before a push.
 2. **Data first.** Types and tables, then small pure functions, with I/O at the edges. Reuse before
    writing; do not build a layer with one caller.
 3. **Zero service-specific knowledge in code.** No service name, host, port, icon or quirk in Go or
-   Svelte. It is all `config.yaml`. The invariants test will fail the build if you break this.
+   Svelte. It is all `config.yaml`. The invariants test fails the build if you break this.
 4. **The container never gets root, the Docker socket, `systemctl`, or a shell.** Privileged work goes
    through request files to `meridian-host` (stdlib only, argv only, allowlist only).
 5. **No authentication, ever, and no state-changing buttons on the launcher.**
 
-The full list of hard constraints is in [CLAUDE.md](CLAUDE.md). They are not negotiable and not
-yours to relax, even when a task seems easier that way.
+## Making a change
+
+1. Read the doc for the area (table at the bottom) and grep the code before writing a helper.
+2. Red: write the test, and the fuzz target if bytes cross a boundary. Watch it fail on the assertion.
+3. Green: the least code that passes. Refactor with the tests green.
+4. `scripts/check --fast`; commit small, Conventional Commits, tests with the code they test.
+5. If the change made a doc sentence false, fix it in the same series. If it made a design choice,
+   append it to [docs/DECISIONS.md](docs/DECISIONS.md) — never edit an existing entry.
+6. `scripts/check all` before pushing. The pre-push hook runs it too.
+
+## How do I...
+
+### Add a service
+
+Config only, no code. Add a `services:` entry to `config.yaml` with a `section`, a `probe`, an
+optional `vital`, the click-through `url`, and an `icon` (a lucide name or a local image). Then
+reload: `docker kill -s HUP meridian`, or run the binary with `--watch`. Check it with
+`cat /etc/meridian/targets.json | docker exec -i meridian /meridian doctor --allowlist -`, which
+probes once and explains anything red. If it should also have buttons, see "add a control target";
+the launcher never gains one on its own.
+
+To add a *whole* homelab rather than one service, copy `config.yaml.example`, and note that
+[`examples/homelab.yaml`](examples/homelab.yaml) shows every shape in use.
+
+### Add a probe or vital kind
+
+The vocabulary is one table per kind, and everything else reads it:
+
+1. Add a row to `config.HealthKinds` or `config.VitalKinds` in
+   [`internal/config/kinds.go`](internal/config/kinds.go): the `Doc` line, `Required`, `Optional` and
+   any cross-field `Needs`.
+2. Add the runner in [`internal/probe`](internal/probe/) and register it in the registry next to the
+   others.
+3. Add table tests for the runner, and a fuzz target if the kind parses untrusted bytes (see
+   [docs/STANDARDS.md](docs/STANDARDS.md) section 3).
+4. Add the kind to the vocabulary at the bottom of [`config.yaml.example`](config.yaml.example) — a
+   test compares that section with the tables and fails until they agree.
+5. Run `scripts/check`. `TestHealthRunners_MatchTheConfigKinds` and its vital twin fail until the
+   table, the runner and the example all agree.
+
+### Add a control target
+
+Follow the "Adding a target" checklist in [docs/CONTROL.md](docs/CONTROL.md). In short: an entry in
+`/etc/meridian/targets.json` with an explicit `actions` list and `criticality`, the target's unit in
+`/etc/meridian/observe.json`, a matching `control:` block in `config.yaml`, `dns: true` if stopping it
+breaks name resolution, tests for the refusal paths, one real action from a phone, then update the
+matrix in `CONTROL.md` and [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md). The allowlist is root-owned
+and never mounted; the container cannot add a target at runtime.
+
+### Cut a release
+
+1. Wait for `main` to be green; the image job follows CI and publishes `:latest` from the commit CI
+   tested.
+2. Tag it and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`. The tag publishes
+   `:vX.Y.Z`, builds both `meridian-host` binaries, writes `SHA256SUMS` and creates the release.
+3. On the box: `sudo deploy/install.sh --upgrade-host --version vX.Y.Z` for the host binary, then
+   update the dashboard from its control row. The host binary is never updated by the container.
+
+### Handle a Dependabot update
+
+Dependabot opens grouped weekly updates for `gomod`, `npm`, `github-actions` and `docker`. Let
+`scripts/check all` decide: merge when green. Read the changelog for a major version bump, and remember
+that a new Go module or npm package needs a new decision (the allowlist is in
+[docs/STANDARDS.md](docs/STANDARDS.md) section 9), while a base-image digest bump only needs the checks.
+An offer that is not on an allowlist is a decision for the owner, not a merge.
+
+### Triage a fuzz crasher
+
+A failing fuzz run writes the input under `testdata/fuzz/<Target>/` next to the target. **Commit the
+crasher file** and fix the bug with a normal red-green cycle; the seed corpus runs in plain `go test`,
+so the crash is then a permanent regression test. Never delete a crasher or re-run until it goes green.
+`scripts/check fuzz` (and the weekly `fuzz-long` workflow) runs the engine for real; `FUZZ_TIME=20s`
+matches CI.
+
+### Review a change
+
+Read [docs/REVIEW-BRIEF.md](docs/REVIEW-BRIEF.md) first: it lists the hard constraints with the test
+that enforces each, the six trust boundaries, the fuzz targets, the decisions most likely to erode and
+four review lanes.
 
 ## When you need the owner
 
-Pi has a question tool (the same style as Claude Code's `AskUserQuestion`: a few questions, 2-4
-options each, an "other" free-text escape). Using it plays a sound that pulls the owner back to the
-window, so **ask rarely and make each ask count**.
-
-Ask when the answer is genuinely the owner's call and you cannot resolve it from the docs, the code
-or an obviously reversible default. Do not ask what the docs answer, do not ask for conventional
-defaults, and do not ask for permission to do your task.
-
-How to ask well:
-- Batch related questions into one call (up to four). One interruption beats four.
-- Put your recommended option first and mark it "(Recommended)".
-- Give enough context in each question to answer without scrolling back, with consequences in the
-  option descriptions.
-- When answered, record the decision as a new numbered entry in
-  [docs/DECISIONS.md](docs/DECISIONS.md) in the same commit series as the work it unblocks.
-
-If the question tool is unavailable, unanswered, or the question is not needed to keep working, fall
-back to [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md): log it with your recommendation, skip to
-the next unblocked task, and never build on a guess.
+Ask with the question tool (batched, recommended option first) only when the answer is genuinely the
+owner's call: reversing a decision, adding a dependency, changing the security model, spending money,
+or choosing between two designs the docs do not settle. Do not ask what the docs answer, for a
+conventional default, or for permission to do your task. If the tool is unavailable, log the question
+in [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) with a recommendation and do not build on a guess.
 
 ## Things you must never do
 
 - Edit or delete an existing line of `docs/DECISIONS.md`. Append only.
 - Add a dependency that is not on the allowlist in `docs/STANDARDS.md` section 9.
 - Skip, weaken or delete a failing test to get green. Use `--no-verify`. Commit a secret.
-- Tick a `[human]` task. Those need the real box; write the steps and leave them.
 - Run anything that needs the real homelab (`systemctl`, Docker, the tailnet). Tests use fakes at the
   named seams and `httptest`.
+- Give the container a new mount, capability, socket or shell. That shape is a decision, not an edit.
 
 ## Reference documents
 
 | Doc | Read when |
 |---|---|
 | [docs/STANDARDS.md](docs/STANDARDS.md) | always; how to write, test, fuzz, secure, commit |
-| [docs/agent/](docs/history/build-out/README.md) | always; the loop and the task list |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | before changing anything a decision covers |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | components, networking, polling model, config shape |
 | [docs/CONTROL.md](docs/CONTROL.md) | anything under `control`, `hostexec`, `hostprobe`, or `deploy/` |
 | [docs/DESIGN.md](docs/DESIGN.md) + `mockups/` | anything under `web/` |
-| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | writing `examples/homelab.yaml`, probe kinds, the Ivy `Host` quirk |
-| [config.yaml.example](config.yaml.example) | the config vocabulary; it is kept in sync with code by a test |
+| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | adding a service, a probe kind or a vital kind |
+| [docs/REVIEW-BRIEF.md](docs/REVIEW-BRIEF.md) | reviewing a change, or checking what is load-bearing |
+| [config.yaml.example](config.yaml.example) | the config vocabulary; a test keeps it in sync with the code |
+| [docs/history/](docs/history/PLAN.md) | how it was built; historical, not maintained |
