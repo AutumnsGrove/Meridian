@@ -1,0 +1,129 @@
+name: review
+
+# The optional PR reviewer (the maintenance-era task described in the archived close-out notes). It
+# asks Pi, through OpenRouter, to review a pull request's diff against docs/REVIEW-BRIEF.md and
+# docs/STANDARDS.md, and posts one comment, or none when there is nothing to say.
+#
+# It is off until the owner turns it on, in the repository's Settings:
+#
+#   secret   OPENROUTER_API_KEY   the key Pi uses
+#   variable REVIEW_MODEL         a provider-qualified model id, e.g.
+#                                 openrouter/anthropic/claude-sonnet-4.6
+#
+# With either one missing the job is skipped, so a fresh clone or a fork never spends anything. A
+# missing key on a same-repo PR fails nothing: the job simply does not run.
+#
+# The choices below are deliberate (decision #94):
+#   - pull_request, never pull_request_target, so a fork's PR never sees the secret; forks are also
+#     skipped explicitly because their token is read-only anyway.
+#   - the base commit is checked out, not the PR head, and Pi gets only the read/grep/find/ls tools,
+#     so nothing a PR contains is ever executed.
+#   - drafts and documentation-only PRs are skipped, and the diff is capped, because a reviewer that
+#     costs money on every typo gets deleted.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: review the diff
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.REVIEW_MODEL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Decide whether this PR is worth a review
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          changed=$(gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" --name-only)
+          if [ -z "$changed" ]; then
+            echo "the pull request changes no files"
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! printf '%s\n' "$changed" | grep -qvE '^(docs/|mockups/)|\.md$'; then
+            echo "the pull request changes only documentation"
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        if: steps.gate.outputs.skip == 'false'
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.gate.outputs.skip == 'false'
+        with:
+          node-version: 22
+
+      - name: Install Pi
+        if: steps.gate.outputs.skip == 'false'
+        run: npm install --global --ignore-scripts @earendil-works/pi-coding-agent@1.3.0
+
+      - name: Collect the diff
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" >/tmp/diff.patch
+          max_bytes=200000
+          if [ "$(wc -c </tmp/diff.patch)" -gt "$max_bytes" ]; then
+            head -c "$max_bytes" /tmp/diff.patch >/tmp/diff.capped
+            printf '\n[diff truncated at %s bytes]\n' "$max_bytes" >>/tmp/diff.capped
+            mv /tmp/diff.capped /tmp/diff.patch
+          fi
+
+      - name: Ask Pi to review it
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          REVIEW_MODEL: ${{ vars.REVIEW_MODEL }}
+        run: |
+          set -euo pipefail
+          {
+            cat .github/review-prompt.md
+            printf '\n\n<!-- BEGIN UNTRUSTED PULL REQUEST DIFF -->\n'
+            cat /tmp/diff.patch
+            printf '\n<!-- END UNTRUSTED PULL REQUEST DIFF -->\n'
+          } >/tmp/prompt.txt
+          pi --print --no-session --no-extensions --no-mcp \
+            --tools read,grep,find,ls \
+            --model "$REVIEW_MODEL" \
+            "$(cat /tmp/prompt.txt)" >/tmp/review.md
+
+      - name: Post one comment, or none
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ ! -s /tmp/review.md ]; then
+            echo "the reviewer said nothing; no comment"
+            exit 0
+          fi
+          if grep -Eqi '^[[:space:]]*NO FINDINGS[[:space:]]*$' /tmp/review.md; then
+            echo "no findings; no comment"
+            exit 0
+          fi
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file /tmp/review.md

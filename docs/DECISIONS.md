@@ -163,3 +163,9 @@ root-owned location; #79 widens the unit-name grammar to accept `.path`; #93 rep
 `meridian-host targets` spelling with the `cat` pipe, because that subcommand was never built. The
 plan and the session work order that produced all of this now live under `docs/history/` and are not
 maintained.
+
+## Maintenance era
+
+| # | Decision | Rejected alternatives | Why |
+|---|---|---|---|
+| 94 | **The PR reviewer is a workflow that is off until the owner turns it on.** `.github/workflows/review.yml` runs on `pull_request` (never `pull_request_target`), checks out the base commit, gives Pi only the `read`, `grep`, `find` and `ls` tools, and posts at most one comment. It runs only when the repository variable `REVIEW_MODEL` is set and the pull request is same-repo, not a draft and not documentation-only; the diff is capped at 200 kB; the prompt lives in `.github/review-prompt.md` and treats the diff as data. `OPENROUTER_API_KEY` is a repository secret | Running on every push to `main`; checking out the PR head so the agent can run the tests; letting a pull request change the prompt or the workflow; one comment per hunk | A model with write tools over untrusted pull-request code is a remote-code-execution path with a credit card attached. A base checkout plus read-only tools means the worst a hostile diff can do is waste tokens, and the caps mean an unconfigured repo spends nothing. Pointing it at the review brief and STANDARDS is what makes it a Meridian reviewer instead of a generic style bot |

@@ -103,6 +103,14 @@ Read [docs/REVIEW-BRIEF.md](docs/REVIEW-BRIEF.md) first: it lists the hard const
 that enforces each, the six trust boundaries, the fuzz targets, the decisions most likely to erode and
 four review lanes.
 
+There is also an optional automated reviewer, [`.github/workflows/review.yml`](.github/workflows/review.yml),
+for changes that arrive as pull requests. It asks Pi, through OpenRouter, to review the diff against
+the brief and [docs/STANDARDS.md](docs/STANDARDS.md) and posts one comment, or none. It is **off until
+the owner enables it**: add the repository secret `OPENROUTER_API_KEY` and set the repository
+variable `REVIEW_MODEL` to a provider-qualified model id such as
+`openrouter/anthropic/claude-sonnet-4.6`. Drafts, documentation-only pull requests and forks are
+skipped, and the agent sees only the base checkout with read-only tools.
+
 ## When you need the owner
 
 Ask with the question tool (batched, recommended option first) only when the answer is genuinely the
