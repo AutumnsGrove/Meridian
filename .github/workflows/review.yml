@@ -10,14 +10,15 @@ name: review
 #   variable REVIEW_MODEL         a provider-qualified model id, e.g.
 #                                 openrouter/anthropic/claude-sonnet-4.6
 #
-# With either one missing the job is skipped, so a fresh clone or a fork never spends anything. A
-# missing key on a same-repo PR fails nothing: the job simply does not run.
+# With either one missing the job is skipped, so a fresh clone or a fork never spends anything: the
+# variable is checked in the job's condition, the secret in the first step (a secret cannot be read
+# in an `if` expression, so it produces a warning annotation instead of a failed run).
 #
 # The choices below are deliberate (decision #94):
 #   - pull_request, never pull_request_target, so a fork's PR never sees the secret; forks are also
 #     skipped explicitly because their token is read-only anyway.
-#   - the base commit is checked out, not the PR head, and Pi gets only the read/grep/find/ls tools,
-#     so nothing a PR contains is ever executed.
+#   - the base commit is checked out, not the PR head, and Pi gets only the read/grep/find/ls tools
+#     with no project-local configuration, so nothing a PR contains is ever executed.
 #   - drafts and documentation-only PRs are skipped, and the diff is capped, because a reviewer that
 #     costs money on every typo gets deleted.
 on:
@@ -50,8 +51,14 @@ jobs:
         id: gate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           set -euo pipefail
+          if [ -z "${OPENROUTER_API_KEY:-}" ]; then
+            echo "::warning::the reviewer is enabled but OPENROUTER_API_KEY is not set"
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
           changed=$(gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" --name-only)
           if [ -z "$changed" ]; then
             echo "the pull request changes no files"
@@ -107,7 +114,7 @@ jobs:
             cat /tmp/diff.patch
             printf '\n<!-- END UNTRUSTED PULL REQUEST DIFF -->\n'
           } >/tmp/prompt.txt
-          pi --print --no-session --no-extensions --no-mcp \
+          pi --print --no-session --no-extensions --no-mcp --no-approve \
             --tools read,grep,find,ls \
             --model "$REVIEW_MODEL" \
             "$(cat /tmp/prompt.txt)" >/tmp/review.md
