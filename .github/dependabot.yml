@@ -1,7 +1,7 @@
 version: 2
 
-# Weekly, grouped, and on the same branch as the build. The npm and docker entries start doing
-# work when web/package.json (T16) and the Dockerfile (T23) land.
+# Weekly and grouped. The npm entry covers web/ and the docker entry covers the Dockerfile's base
+# images and their pinned digests.
 
 updates:
   - package-ecosystem: gomod

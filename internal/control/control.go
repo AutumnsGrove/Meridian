@@ -28,7 +28,7 @@ import (
 var ErrUnavailable = errors.New("control: the control plane is not installed")
 
 // ExecutorUnit is the systemd path unit that fires the executor. The host snapshot carries it because
-// the installer adds it to observe.json (T31), so its state is how a silent executor is seen at all.
+// the installer adds it to observe.json, so its state is how a silent executor is seen at all.
 const ExecutorUnit = "meridian-control.path"
 
 // Executor states as the page renders them.
@@ -55,7 +55,8 @@ const (
 	accessRead  = 0x4
 )
 
-// The reasons Available gives. The first is what /api/status.control shows on a Phase 1 box.
+// The reasons Available gives. The first is what /api/status.control shows on a box with no control
+// mounts.
 const (
 	reasonNotInstalled = "control plane not installed"
 	reasonNotWritable  = "the control plane is not writable from the container"
@@ -86,7 +87,7 @@ type Input struct {
 }
 
 // Available reports whether this box has a usable control plane, and why not when it does not. It is
-// what /api/status.control is built from, so a Phase 1 deployment says so instead of offering
+// what /api/status.control is built from, so a box without an executor says so instead of offering
 // buttons that cannot work.
 func (plane Plane) Available() (available bool, reason string) {
 	cfg := plane.config()

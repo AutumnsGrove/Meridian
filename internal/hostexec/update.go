@@ -12,7 +12,7 @@ import (
 	"github.com/autumnsgrove/meridian/internal/wire"
 )
 
-// The self-update half of the host binary (docs/agent/07-update.md T35). It is the only code that
+// The self-update half of the host binary. It is the only code that
 // pulls or recreates the Meridian container, and everything it believes comes from the root-owned
 // allowlist or is re-validated after being read from the container's hint.
 

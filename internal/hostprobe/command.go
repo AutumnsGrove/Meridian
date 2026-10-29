@@ -66,9 +66,9 @@ func Run(ctx context.Context, d Deps, opts Options, logf func(string, ...any)) e
 	return nil
 }
 
-// loadUnitFile reads one of the host's unit lists. A file that is simply not there is normal — Phase 1
-// has no targets.json, a control-plane box has no observe.json — so it is silent; anything else earns
-// a line in the timer's log and contributes no units.
+// loadUnitFile reads one of the host's unit lists. A file that is simply not there is normal — a
+// launcher-only box has no targets.json, a control-plane box has no observe.json — so it is silent;
+// anything else earns a line in the timer's log and contributes no units.
 func loadUnitFile(path string, maxSize int64, owner uint32) (content []byte, problem string) {
 	if path == "" {
 		return nil, ""

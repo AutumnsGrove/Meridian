@@ -1,8 +1,8 @@
 # The one privileged line on this box. Installed as /etc/sudoers.d/meridian, mode 0440, validated with
-# `visudo -cf` by the installer (T36).
+# `visudo -cf` by the installer.
 #
 # No wildcard, no extra arguments: `/etc/meridian/meridian-host exec` and nothing else, so this rule
 # cannot be turned into "run the executor on a file of the caller's choosing" (decision #66).
 #
-# @DEPLOY_USER@ is filled by the installer (T36).
+# @DEPLOY_USER@ is filled by the installer.
 @DEPLOY_USER@ ALL=(root) NOPASSWD: /etc/meridian/meridian-host exec

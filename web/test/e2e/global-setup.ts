@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { statePath, type RunState } from './state';
 
 // The suite runs the binary that ships, on the portable fixture, against a stub upstream
-// (docs/agent/04-gateway-and-web.md, T19). Everything a machine decides is chosen here: two free
+//. Everything a machine decides is chosen here: two free
 // ports, one temp directory, and a copy of the fixture with those three values substituted in.
 // Nothing real is touched: no systemd, no Docker, no tailnet.
 

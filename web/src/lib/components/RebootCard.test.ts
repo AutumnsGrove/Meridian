@@ -6,7 +6,7 @@ import RebootCard from './RebootCard.svelte';
 const control = loadStatus('status.all-ok.golden.json').control;
 
 describe('RebootCard', () => {
-	test('is visible in Phase 1, with the action refused and the reason given', () => {
+	test('is visible without an executor, with the action refused and the reason given', () => {
 		render(RebootCard, { reason: 'control plane not installed' });
 
 		expect(screen.getByRole('heading', { level: 2, name: 'Host' })).toBeTruthy();

@@ -185,7 +185,7 @@ func TestDeploy_TheHomelabAllowlistKeepsTheHazards(t *testing.T) {
 
 // TestDeploy_TheObserveListWatchesTheExecutor is what makes "no executor" visible from the container:
 // the page only learns the watcher is dead because the host snapshot reports its unit, and the probe
-// only reports units it was told about (decisions #61, #79). The installer appends this line (T36).
+// only reports units it was told about (decisions #61, #79). The installer appends this line.
 func TestDeploy_TheObserveListWatchesTheExecutor(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(repoRoot, "deploy", "observe.example.json"))
 	if err != nil {

@@ -140,7 +140,7 @@ func Resolve(ctx context.Context, fetch probe.Fetcher, source Source, running Ru
 
 // Request writes the one file the host side reads: update-signal/requested, containing only a
 // validated digest. It is a hint, not a command. The host re-validates it against its own allowlist
-// before anything is pulled (T35).
+// before anything is pulled.
 func Request(dir string, digest wire.Digest) error {
 	if !digest.IsValid() {
 		return fmt.Errorf("%w: %q is not a digest", wire.ErrInvalidDigest, digest)

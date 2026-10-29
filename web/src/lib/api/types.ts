@@ -1,4 +1,4 @@
-// The /api/status contract as the browser sees it (docs/agent/04-gateway-and-web.md). Every field is
+// The /api/status contract as the browser sees it. Every field is
 // already formatted by Go: the browser only computes ages and search URLs (decision #59).
 
 /** The five-value closed set a service's health can be in. */
@@ -62,7 +62,7 @@ export type ConfigState = {
 	error: string;
 };
 
-/** Whether the control plane exists on this box at all (false throughout Phase 1). */
+/** Whether the control plane exists on this box at all (false when the control mounts are absent). */
 export type ControlAvailability = {
 	available: boolean;
 	reason: string;

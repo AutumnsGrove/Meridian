@@ -28,7 +28,7 @@ const csp: NonNullable<SvelteKitOptions>['csp'] = {
 };
 
 // In `vite dev` the API and icons come from a running `meridian` binary on loopback, so the browser
-// stays same-origin and the host guard sees a loopback Host (docs/agent/04, T16).
+// stays same-origin and the host guard sees a loopback Host.
 const backend = 'http://127.0.0.1:8891';
 
 export default defineConfig({

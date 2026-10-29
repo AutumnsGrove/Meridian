@@ -13,7 +13,7 @@ import (
 	"github.com/autumnsgrove/meridian/internal/wire"
 )
 
-// The control routes (T26). One mutating route exists in the whole gateway, it goes through the
+// The control routes. One mutating route exists in the whole gateway, it goes through the
 // browser guard, and it can only express a choice among what config.yaml already declares: no id,
 // no timestamp, no command and no file name come from the browser (decisions #14, #62).
 

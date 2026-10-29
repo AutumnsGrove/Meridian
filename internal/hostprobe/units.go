@@ -29,9 +29,9 @@ type UnitList struct {
 }
 
 // Units merges the unit lists from observe.json (written for this phase, decision #61) and every
-// `unit` field in targets.json (the allowlist). Both files are optional: Phase 1 has no allowlist, a
-// control-plane box has no observation list. Names are deduplicated and sorted, so two runs over the
-// same files ask systemctl the same questions in the same order.
+// `unit` field in targets.json (the allowlist). Both files are optional: a launcher-only box has no
+// allowlist, a control-plane box has no observation list. Names are deduplicated and sorted, so two
+// runs over the same files ask systemctl the same questions in the same order.
 func Units(observe, targets []byte) UnitList {
 	var (
 		list  UnitList

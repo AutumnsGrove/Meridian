@@ -4,7 +4,7 @@
 # command, a target or an action. The allowlist and the executor live in /etc/meridian, which is never
 # mounted into the container.
 #
-# @DEPLOY_USER@ is filled by the installer (T36).
+# @DEPLOY_USER@ is filled by the installer.
 #
 # StartLimitIntervalSec=0 is not optional: the path unit can fire again the instant the queue is
 # non-empty, and the default start rate limit (five starts in ten seconds) would silently disable this

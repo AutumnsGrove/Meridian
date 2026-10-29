@@ -96,7 +96,7 @@ func Run(ctx context.Context, opts RunOptions, signals <-chan os.Signal, logger 
 		Host:      host.Read,
 		Now:       time.Now,
 		// The container side of the control plane. It answers "not installed" on a box with no
-		// control mounts, which is how Phase 1 behaves (decisions #10 and #57).
+		// control mounts (decisions #10 and #57).
 		Control: &control.Plane{
 			Config: func() *config.Config {
 				current, _ := live.Current()
@@ -239,7 +239,7 @@ func problemLines(err error) []string {
 }
 
 // bannerError is the short form the page shows: the first few problems as "path: code", because a
-// banner is not the place for a paragraph (docs/agent/04-gateway-and-web.md, T15).
+// banner is not the place for a paragraph.
 func bannerError(err error) string {
 	var problems config.Problems
 	if !errors.As(err, &problems) {

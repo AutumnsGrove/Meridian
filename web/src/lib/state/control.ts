@@ -33,7 +33,8 @@ export function controlNote(control: ControlAvailability): string | null {
 
 /**
  * The buttons for one row. Nothing here decides to enable anything: a reason on the button is the
- * whole rule, so Phase 1 shows every action and says why it is dead (docs/DESIGN.md "Control panel").
+ * whole rule, so a box without the control mounts shows every action and says why it is dead
+ * (docs/DESIGN.md "Control panel").
  */
 export function rowActions(service: Service, control: ControlAvailability): RowAction[] {
 	const reason = control.available ? '' : controlReason(control);
@@ -55,7 +56,7 @@ export function targetID(hash: string): string | null {
 	return SLUG.test(id) ? id : null;
 }
 
-/** How often the control view is asked for, once per interval (docs/agent/06-control.md T30). */
+/** How often the control view is asked for, once per interval. */
 export const CONTROL_FOLLOW_UP_MS = 1_000;
 export const CONTROL_IDLE_MS = 10_000;
 
@@ -207,7 +208,7 @@ export function ackFor(action: string, dns: boolean): string {
 	return '';
 }
 
-/** True while a reboot is queued or running, which is when the page watches /healthz (T30). */
+/** True while a reboot is queued or running, which is when the page watches /healthz. */
 export function isRebooting(arm: ArmState, view: ControlStatus | null): boolean {
 	if (arm.phase !== 'sending' && arm.phase !== 'pending') return false;
 	if (arm.action !== 'reboot') return false;

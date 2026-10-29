@@ -48,8 +48,8 @@ type composeService struct {
 	} `yaml:"healthcheck"`
 }
 
-// checkComposeInvariants is T23: the compose file is the container's entire privilege story, and the
-// most expensive mistakes in this design are one-line edits to it, so they get a test.
+// checkComposeInvariants holds the container's entire privilege story: the compose file, and the most
+// expensive mistakes in this design are one-line edits to it, so they get a test.
 func checkComposeInvariants(root string) error {
 	const name = "deploy/docker-compose.yml"
 
@@ -102,7 +102,7 @@ func checkComposeInvariants(root string) error {
 		{service.Restart == "unless-stopped", "restart must be unless-stopped"},
 		{service.PidsLimit > 0, "pids_limit must be set"},
 		{service.MemLimit != "", "mem_limit must be set"},
-		{service.Image == "${MERIDIAN_IMAGE}", "image must be ${MERIDIAN_IMAGE} so Phase 4 can pin a digest in .env"},
+		{service.Image == "${MERIDIAN_IMAGE}", "image must be ${MERIDIAN_IMAGE} so the self-update can pin a digest in .env"},
 		{slices.Contains(service.EnvFile, ".env"), "env_file must name .env"},
 		{slices.Contains(service.Tmpfs, "/tmp"), "tmpfs must provide /tmp, the only writable path"},
 		{slices.Equal(service.Healthcheck.Test, []string{"CMD", "/meridian", "healthcheck"}), "the healthcheck must be the binary's own healthcheck"},

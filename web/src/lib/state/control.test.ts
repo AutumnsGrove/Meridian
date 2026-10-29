@@ -123,7 +123,7 @@ describe('controlReason', () => {
 });
 
 describe('controlNote', () => {
-	test('says the control plane is not installed in Phase 1', () => {
+	test('says the control plane is not installed when the mounts are absent', () => {
 		expect(controlNote(unavailable)).toBe('Control plane not installed on this box');
 	});
 

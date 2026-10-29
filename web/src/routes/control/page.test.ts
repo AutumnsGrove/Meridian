@@ -41,7 +41,7 @@ describe('the control placeholder', () => {
 		expect(screen.queryByRole('heading', { level: 2, name: 'Jellyfin' })).toBeNull();
 	});
 
-	test('no button on the page is enabled in Phase 1', async () => {
+	test('no button on the page is enabled without an executor', async () => {
 		render(Page);
 
 		await waitFor(() => expect(screen.getAllByRole('button').length).toBeGreaterThan(0));

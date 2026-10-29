@@ -21,7 +21,7 @@ import (
 )
 
 // The documented server limits. WriteTimeout has to clear the six seconds a page load may wait for
-// fresh probe results (T15); the rest are the conservative values from STANDARDS section 4.
+// fresh probe results; the rest are the conservative values from STANDARDS section 4.
 const (
 	readHeaderTimeout = 5 * time.Second
 	readTimeout       = 10 * time.Second
@@ -63,7 +63,7 @@ type Deps struct {
 	// Host reads the latest host snapshot. A nil Host, or no snapshot, leaves the host block null.
 	Host func() (wire.HostSnapshot, bool)
 	// Control is the container side of the control plane. A nil Control means this box has none, which
-	// is every Phase 1 deployment: /api/control answers 503 and /api/status says so.
+	// is every box without the control mounts: /api/control answers 503 and /api/status says so.
 	Control *control.Plane
 	// Update resolves the newest published digest for /api/update. A nil Update means this build
 	// cannot check; a config without an update block answers "not configured" without calling it.

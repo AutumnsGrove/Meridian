@@ -172,7 +172,7 @@ func TestRun_WritesTheSnapshotWithoutTheFilesItCannotTrust(t *testing.T) {
 	if joined := strings.Join(logged, "\n"); !strings.Contains(joined, "targets.json") {
 		t.Errorf("log = %q, want the untrusted file named", joined)
 	}
-	// A missing file is normal in Phase 1, so it is not worth a complaint.
+	// A missing file is normal without an allowlist, so it is not worth a complaint.
 	if joined := strings.Join(logged, "\n"); strings.Contains(joined, "absent.json") {
 		t.Errorf("log = %q, want no complaint about a file that is simply not there", joined)
 	}

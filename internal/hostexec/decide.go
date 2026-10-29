@@ -29,7 +29,7 @@ type Decision struct {
 	Note string
 	// Target is the allowlist entry, zero when the request never reached the allowlist.
 	Target Target
-	// Action is the action to run, for the command table (T28).
+	// Action is the action to run, for the command table.
 	Action wire.Action
 }
 

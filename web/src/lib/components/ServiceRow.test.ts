@@ -28,7 +28,7 @@ describe('ServiceRow', () => {
 		]);
 	});
 
-	test('every action is disabled in Phase 1 and describes why', () => {
+	test('every action is disabled without an executor and describes why', () => {
 		render(ServiceRow, { service: metrics, control });
 
 		for (const button of screen.getAllByRole('button') as HTMLButtonElement[]) {

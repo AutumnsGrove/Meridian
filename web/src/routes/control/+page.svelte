@@ -57,7 +57,8 @@
 		if (element !== null) element.scrollIntoView({ block: 'start' });
 	});
 
-	// Only poll the control view when there is one. A Phase 1 box answers 503 to that route, and the
+	// Only poll the control view when there is one. A box without an executor answers 503 to that
+	// route, and the
 	// browser logs a failed request as a console error, so asking a question nobody can answer would
 	// put an error on a page that is working exactly as intended.
 	$effect(() => {

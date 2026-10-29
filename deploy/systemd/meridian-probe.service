@@ -3,7 +3,7 @@
 # It runs as the deploy user, never root. `systemctl show` and `tailscale status` do not need root, and
 # the host binary must not be a second way to act as root on this box (decision #27).
 #
-# @DEPLOY_USER@ and @STATUS_DIR@ are filled by the installer (T31/T36). STATUS_DIR is the Meridian
+# @DEPLOY_USER@ and @STATUS_DIR@ are filled by the installer. STATUS_DIR is the Meridian
 # data directory on the host, the same one the container mounts read-only at /status.
 [Unit]
 Description=Meridian host probe (write the dashboard's host snapshot)

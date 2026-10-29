@@ -29,7 +29,7 @@ const (
 	DefaultLockFile    = "/run/lock/meridian-control.lock"
 
 	// maxRequestsPerRun bounds one invocation. The path unit fires again for whatever is left, which
-	// keeps a single oneshot well inside its TimeoutStartSec (T31).
+	// keeps a single oneshot well inside its TimeoutStartSec.
 	maxRequestsPerRun = 64
 	// historyDepth is how many results Decide sees: enough for a replay check and a coalescing
 	// window several actions deep.
@@ -48,8 +48,8 @@ const (
 	maxAuditSize = 16 << 20
 )
 
-// Commander runs one command and reports its exit code and output. T28 supplies the real one, which is
-// the only place the executor starts a process.
+// Commander runs one command and reports its exit code and output. The runner supplies the real one,
+// which is the only place the executor starts a process.
 type Commander func(ctx context.Context, command Command) (exitCode int, output string, err error)
 
 // Executor is one run of `meridian-host exec`.

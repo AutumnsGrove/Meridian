@@ -443,9 +443,9 @@ func moduleAllowed(module string, allowed []string) bool {
 	return false
 }
 
-// checkDoctorReadOnly is T21: doctor explains the config and the world, it never changes either. It
-// must not import the control package (which would let it enqueue an action) and must not call
-// anything that writes to disk.
+// checkDoctorReadOnly is the read-only rule: doctor explains the config and the world, it never
+// changes either. It must not import the control package (which would let it enqueue an action) and
+// must not call anything that writes to disk.
 func checkDoctorReadOnly(root string) error {
 	if _, err := os.Stat(filepath.Join(root, "internal", "doctor")); errors.Is(err, fs.ErrNotExist) {
 		return nil // not built yet
@@ -467,7 +467,7 @@ func checkDoctorReadOnly(root string) error {
 				continue
 			}
 			if strings.HasSuffix(path, "/internal/control") || strings.HasSuffix(path, "/internal/atomicfile") {
-				return fmt.Errorf("%s imports %s; doctor is read only (T21)", f.rel, path)
+				return fmt.Errorf("%s imports %s; doctor is read only", f.rel, path)
 			}
 		}
 		var violation error
@@ -483,7 +483,7 @@ func checkDoctorReadOnly(root string) error {
 			if !ok || !writers[name] {
 				return true
 			}
-			violation = fmt.Errorf("%s: %s writes; doctor is read only (T21)", f.pos(call), name)
+			violation = fmt.Errorf("%s: %s writes; doctor is read only", f.pos(call), name)
 			return false
 		})
 		return violation

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// The self-update report (T34). It is read only: tapping update is the ordinary control request for
+// The self-update report. It is read only: tapping update is the ordinary control request for
 // the Meridian target, so this route can never pull, recreate or write anything.
 
 // updateResolveTimeout bounds one check. A GET cannot hold a phone's connection open for the four

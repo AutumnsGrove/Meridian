@@ -8,14 +8,14 @@ import (
 	"github.com/autumnsgrove/meridian/internal/wire"
 )
 
-// The command table (docs/agent/06-control.md "T28"). Every command the executor may run is a pure
+// The command table. Every command the executor may run is a pure
 // function from allowlist data to argv: this file is the only place that names a program or a flag,
 // and nothing a browser sends can add one (decision #31). A row that is missing is a refusal, never a
 // fallback, so a new action cannot run by accident.
 
 const (
-	// DefaultTimeout bounds one action's command. The control unit's TimeoutStartSec must be larger
-	// (T31), or systemd kills the run before the executor can answer.
+	// DefaultTimeout bounds one action's command. The control unit's TimeoutStartSec must be larger,
+	// or systemd kills the run before the executor can answer.
 	DefaultTimeout = 120 * time.Second
 	// UpdateDefaultTimeout bounds an update, which pulls and builds. A target may lower it with
 	// update_timeout_s.
@@ -245,7 +245,7 @@ func updateByDocker(in BuildInput) (Command, error) {
 }
 
 // updateBySelf re-executes the host binary as the deploy user. That command owns the pin, pull,
-// recreate, health poll and rollback (T35); the executor owns the result, so this row is one command
+// recreate, health poll and rollback; the executor owns the result, so this row is one command
 // with one deadline like every other.
 func updateBySelf(in BuildInput) (Command, error) {
 	return Command{

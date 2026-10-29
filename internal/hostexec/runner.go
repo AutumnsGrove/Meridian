@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// The Commander that actually starts processes (docs/agent/06-control.md "T28"). It is the only
+// The Commander that actually starts processes. It is the only
 // os/exec use in the executor, and it inherits nothing: the environment is the three variables below,
 // the working directory and the user come from the allowlist, and the whole process group dies on a
 // timeout (STANDARDS section 4 "Privilege").

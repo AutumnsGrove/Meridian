@@ -1,6 +1,6 @@
 // Package doctor explains a config against the world, read only: it runs each probe once, compares
 // the control blocks with the host's allowlist, and never writes a file or asks the control plane for
-// anything (docs/agent/05-cli-and-deploy.md, T21; decision #15 keeps /etc/meridian out of the image).
+// anything (decision #15 keeps /etc/meridian out of the image).
 package doctor
 
 import (
@@ -109,7 +109,7 @@ func (report Report) Failed() bool {
 const defaultProbeTimeout = 5 * time.Second
 
 // Run builds the report. Every probe runs once, here, with the same runners the page uses, so doctor
-// and the page cannot disagree about whether a service answers (docs/agent/05, T21). It is read only:
+// and the page cannot disagree about whether a service answers. It is read only:
 // it writes no file and asks the control plane for nothing.
 func Run(ctx context.Context, cfg *config.Config, env probe.Env, allow *Allowlist) Report {
 	report := Report{Config: configChecks(cfg, allow)}
@@ -162,7 +162,7 @@ func InvalidAllowlist(err error) Report {
 		Code:   CodeInvalidAllowlist,
 		Detail: err.Error(),
 		Level:  Fail,
-		Hint:   "pass --allowlist with the output of `meridian-host targets`, or a file with that shape",
+		Hint:   "pass --allowlist with /etc/meridian/targets.json, or a file with that shape",
 	}}}
 }
 
@@ -173,7 +173,7 @@ func configChecks(cfg *config.Config, allow *Allowlist) []Check {
 			Code:   CodeAllowlistNotChecked,
 			Detail: "the control allowlist was not checked",
 			Level:  Warn,
-			Hint:   "pass --allowlist with the output of `meridian-host targets`",
+			Hint:   "pass --allowlist with /etc/meridian/targets.json, or a file with that shape",
 		}}
 	}
 
@@ -440,7 +440,7 @@ func hintFor(code string) string {
 	return "the reason code above is the same one the page and the log carry; fix that and run doctor again"
 }
 
-// hints is the table of next steps, keyed by the code that produced them (docs/agent/05, T21). It is
+// hints is the table of next steps, keyed by the code that produced them. It is
 // deliberately generic in one direction: it may name a decision, never a service.
 var hints = map[string]string{
 	probe.CodeBadStatus:       "check the expected statuses; a service behind a proxy may answer 403 unless it gets its own Host header, and probe URLs normally use localhost",

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install or upgrade Meridian on a Debian-family box (docs/agent/07-update.md T36).
+# Install or upgrade Meridian on a Debian-family box.
 #
 # The installer is deliberately thin: it creates the layout, installs the host binary and the
 # root-owned allowlist, asks meridian-host to render the unit templates, validates them with the
