@@ -7,13 +7,14 @@ name: review
 # It is off until the owner turns it on, in the repository's Settings:
 #
 #   secret   OPENROUTER_API_KEY   the key Pi uses
-#   variable REVIEW_MODEL         a provider-qualified model id, e.g.
-#                                 openrouter/anthropic/claude-sonnet-4.6
+#   variable REVIEW_MODEL         the model id OpenRouter knows, e.g.
+#                                 deepseek/deepseek-v4.1-flash-1017
 #
 # A secret named REVIEW_MODEL also works, because storing a non-sensitive id on the secrets page is
-# an easy mistake to make; the variable is the intended home. With either missing the job starts and
-# skips in its first step (a secret cannot be read in a job's `if`, so the check lives there), and
-# with the key missing it warns instead of failing on every pull request.
+# an easy mistake to make; the variable is the intended home. The provider is always openrouter,
+# because that is the key this job has; a leading `openrouter/` in the id is stripped. With either
+# missing the job starts and skips in its first step (a secret cannot be read in a job's `if`, so the
+# check lives there), and with the key missing it warns instead of failing on every pull request.
 #
 # The choices below are deliberate (decision #94):
 #   - pull_request, never pull_request_target, so a fork's PR never sees the secret; forks are also
@@ -57,6 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           model="${REVIEW_MODEL_VARIABLE:-${REVIEW_MODEL_SECRET:-}}"
+          model="${model#openrouter/}"
           if [ -z "$model" ]; then
             echo "::notice::the reviewer is not configured: set the REVIEW_MODEL variable (or secret)"
             echo "skip=true" >>"$GITHUB_OUTPUT"
@@ -125,6 +127,7 @@ jobs:
           } >/tmp/prompt.txt
           pi --print --no-session --no-extensions --no-mcp --no-approve \
             --tools read,grep,find,ls \
+            --provider openrouter \
             --model "$REVIEW_MODEL" \
             "$(cat /tmp/prompt.txt)" >/tmp/review.md
 

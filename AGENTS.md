@@ -106,11 +106,11 @@ four review lanes.
 There is also an optional automated reviewer, [`.github/workflows/review.yml`](.github/workflows/review.yml),
 for changes that arrive as pull requests. It asks Pi, through OpenRouter, to review the diff against
 the brief and [docs/STANDARDS.md](docs/STANDARDS.md) and posts one comment, or none. It is **off until
-the owner enables it**: add the repository secret `OPENROUTER_API_KEY` and set `REVIEW_MODEL` to a
-provider-qualified model id such as `openrouter/anthropic/claude-sonnet-4.6` (as a repository
-variable, which is the right place for it; a secret of the same name also works). Drafts,
-documentation-only pull requests and forks are skipped, and the agent sees only the base checkout
-with read-only tools.
+the owner enables it**: add the repository secret `OPENROUTER_API_KEY` and set `REVIEW_MODEL` to the
+model id OpenRouter knows, such as `deepseek/deepseek-v4.1-flash-1017` (as a repository variable,
+which is the right place for it; a secret of the same name also works). The provider is always
+OpenRouter, which is the only credential the job has. Drafts, documentation-only pull requests and
+forks are skipped, and the agent sees only the base checkout with read-only tools.
 
 ## When you need the owner
 
