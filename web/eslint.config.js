@@ -23,8 +23,8 @@ export default tseslint.config(
 			parserOptions: { parser: tseslint.parser }
 		},
 		rules: {
-			// Links are absolute from / because the gateway serves the SPA there with no base path
-			// (docs/agent/04, T14). A base path would need resolve() from $app/paths instead.
+			// Links are absolute from / because the gateway serves the SPA there with no base path.
+			// A base path would need resolve() from $app/paths instead.
 			'svelte/no-navigation-without-resolve': 'off'
 		}
 	}
