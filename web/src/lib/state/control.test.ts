@@ -308,7 +308,9 @@ describe('isRebooting', () => {
 
 	test('is false for anything else, so the reconnect loop never runs for a restart', () => {
 		expect(isRebooting({ phase: 'pending', action: 'restart', id: 'x' }, control)).toBe(false);
-		expect(isRebooting({ phase: 'armed', action: 'reboot', expiresAt: 1 }, control)).toBe(false);
+		expect(
+			isRebooting({ phase: 'armed', action: 'reboot', target: 'host', expiresAt: 1 }, control)
+		).toBe(false);
 	});
 });
 

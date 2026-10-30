@@ -14,6 +14,7 @@ const eventArb: fc.Arbitrary<ArmEvent> = fc.oneof(
 	fc.record({
 		type: fc.constant('tap' as const),
 		action: fc.constantFrom('start', 'restart', 'update', 'stop', 'reboot'),
+		target: fc.constantFrom('app', 'resolver', 'host'),
 		now: fc.integer({ min: 0, max: 60_000 })
 	}),
 	fc.record({ type: fc.constant('expire' as const), now: fc.integer({ min: 0, max: 60_000 }) }),
@@ -28,8 +29,8 @@ const eventArb: fc.Arbitrary<ArmEvent> = fc.oneof(
 	fc.constant<ArmEvent>({ type: 'cancel' })
 );
 
-function tap(action: string, now = 0): ArmEvent {
-	return { type: 'tap', action, now };
+function tap(action: string, now = 0, target = 'app'): ArmEvent {
+	return { type: 'tap', action, target, now };
 }
 
 describe('needsArming', () => {
@@ -57,7 +58,26 @@ describe('reduceArm', () => {
 		const { state, effect } = reduceArm(initialArmState(), tap('stop'));
 
 		expect(effect).toEqual({ type: 'none' });
-		expect(state).toEqual({ phase: 'armed', action: 'stop', expiresAt: ARM_WINDOW_MS });
+		expect(state).toEqual({
+			phase: 'armed',
+			action: 'stop',
+			target: 'app',
+			expiresAt: ARM_WINDOW_MS
+		});
+	});
+
+	test("a tap on another row does not spend the first row's arming", () => {
+		const armed = reduceArm(initialArmState(), tap('stop', 0, 'app')).state;
+		const { state, effect } = reduceArm(armed, tap('stop', 1_000, 'resolver'));
+
+		// The second row was never armed, so this tap arms it and sends nothing.
+		expect(effect).toEqual({ type: 'none' });
+		expect(state).toEqual({
+			phase: 'armed',
+			action: 'stop',
+			target: 'resolver',
+			expiresAt: 1_000 + ARM_WINDOW_MS
+		});
 	});
 
 	test('the second tap inside the window sends', () => {
@@ -73,7 +93,12 @@ describe('reduceArm', () => {
 		const { state, effect } = reduceArm(armed, tap('stop', ARM_WINDOW_MS));
 
 		expect(effect).toEqual({ type: 'none' });
-		expect(state).toEqual({ phase: 'armed', action: 'stop', expiresAt: ARM_WINDOW_MS * 2 });
+		expect(state).toEqual({
+			phase: 'armed',
+			action: 'stop',
+			target: 'app',
+			expiresAt: ARM_WINDOW_MS * 2
+		});
 	});
 
 	test('expiring returns an armed button to rest, and a late expiry is ignored', () => {
@@ -154,8 +179,9 @@ describe('the armed rule, over arbitrary event streams', () => {
 					const outcome = reduceArm(state, event);
 					if (outcome.effect.type === 'send' && needsArming(outcome.effect.action)) {
 						if (before.phase !== 'armed' || before.action !== outcome.effect.action) return false;
-						// The tap that sends has to be inside the window it armed.
+						// The tap that sends has to be inside the window it armed, on the row it armed.
 						if (event.type !== 'tap' || event.now >= before.expiresAt) return false;
+						if (event.target !== before.target) return false;
 					}
 					state = outcome.state;
 				}

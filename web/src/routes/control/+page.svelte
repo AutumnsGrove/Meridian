@@ -110,7 +110,7 @@
 	});
 
 	function tap(action: string, target: string): void {
-		const outcome = reduceArm(arm, { type: 'tap', action, now: Date.now() });
+		const outcome = reduceArm(arm, { type: 'tap', action, target, now: Date.now() });
 		arm = outcome.state;
 		activeTarget = target;
 		if (outcome.effect.type === 'send') void send(outcome.effect.action, target);

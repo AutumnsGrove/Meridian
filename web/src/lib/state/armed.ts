@@ -16,14 +16,14 @@ export function needsArming(action: string): boolean {
 
 export type ArmState =
 	| { phase: 'idle' }
-	| { phase: 'armed'; action: string; expiresAt: number }
+	| { phase: 'armed'; action: string; target: string; expiresAt: number }
 	| { phase: 'sending'; action: string }
 	| { phase: 'pending'; action: string; id: string }
 	| { phase: 'done'; action: string; id: string | null; ok: boolean; sentence: string };
 
 export type ArmEvent =
-	/** A press on the button, at the browser's clock. */
-	| { type: 'tap'; action: string; now: number }
+	/** A press on a row's button, at the browser's clock. The target is the row the press belongs to. */
+	| { type: 'tap'; action: string; target: string; now: number }
 	/** The arming window ran out. */
 	| { type: 'expire'; now: number }
 	/** The request exists and has an id. */
@@ -57,11 +57,23 @@ export function reduceArm(
 			if (!needsArming(event.action)) {
 				return { state: { phase: 'sending', action: event.action }, effect: send(event.action) };
 			}
-			if (state.phase === 'armed' && state.action === event.action && event.now < state.expiresAt) {
+			// The second tap belongs to the row that was armed. Another row's button for the same action
+			// is a first tap of its own: it arms that row, and the old arming is spent.
+			if (
+				state.phase === 'armed' &&
+				state.action === event.action &&
+				state.target === event.target &&
+				event.now < state.expiresAt
+			) {
 				return { state: { phase: 'sending', action: event.action }, effect: send(event.action) };
 			}
 			return {
-				state: { phase: 'armed', action: event.action, expiresAt: event.now + ARM_WINDOW_MS },
+				state: {
+					phase: 'armed',
+					action: event.action,
+					target: event.target,
+					expiresAt: event.now + ARM_WINDOW_MS
+				},
 				effect: { type: 'none' }
 			};
 		}
