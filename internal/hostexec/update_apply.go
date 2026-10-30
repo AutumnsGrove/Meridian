@@ -29,6 +29,11 @@ const (
 	healthRequestTimeout = 5 * time.Second
 	rollbackTimeout      = 90 * time.Second
 	maxEnvSize           = 64 << 10
+
+	// SelfUpdateMinTimeoutS is the least time a self update may be given: every step using its whole
+	// budget, with the rollback still inside the executor's deadline. A shorter update_timeout_s lets the
+	// executor kill the updater mid-rollback and leave .env pinned to an image that never started.
+	SelfUpdateMinTimeoutS = int((pullTimeout + upTimeout + healthWindow + rollbackTimeout) / time.Second)
 )
 
 // Updater is one `meridian-host update` run. It is invoked by the executor as the self target's

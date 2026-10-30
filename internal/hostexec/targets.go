@@ -315,6 +315,10 @@ func validateUpdate(where string, target Target, deployUser string, fail func(st
 		if !target.ResultFirst {
 			fail("%s: a self update must set result_first, or the container dies before its result exists", where)
 		}
+		if target.UpdateTimeoutS != 0 && target.UpdateTimeoutS < SelfUpdateMinTimeoutS {
+			fail("%s: update_timeout_s %d is shorter than a self update's own steps; use %d or more, or leave it out",
+				where, target.UpdateTimeoutS, SelfUpdateMinTimeoutS)
+		}
 		if target.Update.Unit != "" || len(target.Update.Cmd) != 0 || target.Update.RunAs != "" {
 			fail("%s: a self update takes no unit, cmd or run_as", where)
 		}

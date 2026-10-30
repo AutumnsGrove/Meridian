@@ -1,6 +1,7 @@
 package hostexec_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -86,6 +87,20 @@ func TestLoadTargets_AcceptsASelfUpdate(t *testing.T) {
 	}
 }
 
+// TestLoadTargets_AcceptsASelfUpdateTimeoutThatFitsItsSteps: the floor is the sum of the pull, recreate,
+// health and rollback budgets, so the executor never kills the updater halfway through its rollback.
+func TestLoadTargets_AcceptsASelfUpdateTimeoutThatFitsItsSteps(t *testing.T) {
+	document := fmt.Sprintf(`{"targets":{"meridian":{
+		"kind":"systemd","unit":"meridian.service","actions":["restart","update"],
+		"criticality":"high","result_first":true,"update_timeout_s":%d,
+		"update":{"kind":"self","image":"ghcr.io/owner/meridian","dir":"/srv/meridian",
+			"service":"meridian","port":8891,"signal_file":"/srv/meridian/update-signal/requested"}
+	}}}`, hostexec.SelfUpdateMinTimeoutS)
+	if _, err := hostexec.LoadTargets([]byte(document), deployUser); err != nil {
+		t.Fatalf("LoadTargets at the floor: %v", err)
+	}
+}
+
 func TestLoadTargets_RefusesWhatTheExecutorCannotSafelyRun(t *testing.T) {
 	// One whole document per row: every row must be refused. A single impossible target refuses the
 	// entire allowlist, because running half of one is worse than running none.
@@ -143,6 +158,7 @@ func TestLoadTargets_RefusesWhatTheExecutorCannotSafelyRun(t *testing.T) {
 		{"self update with a relative signal file", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","port":8891,"signal_file":"update-signal/requested"}`)},
 		{"self update with a unit", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested","unit":"app-update.service"}`)},
 		{"self update without result_first", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested"}`)},
+		{"self update with less time than its own steps", wrap("app", `"kind":"systemd","unit":"app.service","actions":["update"],"result_first":true,"update_timeout_s":60,"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested"}`)},
 		{"two self update targets", `{"targets":{
 			"app":{"kind":"systemd","unit":"app.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/app","dir":"/srv/app","service":"app","port":8891,"signal_file":"/srv/app/update-signal/requested"}},
 			"other":{"kind":"systemd","unit":"other.service","actions":["update"],"update":{"kind":"self","image":"ghcr.io/owner/other","dir":"/srv/other","service":"other","port":8892,"signal_file":"/srv/other/update-signal/requested"}}

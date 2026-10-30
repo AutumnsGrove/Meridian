@@ -159,6 +159,8 @@ pulls and recreates together), or `self`
 (Meridian's own digest-pinned update, run by `meridian-host update`; carries the image repository,
 the compose directory, the service, the loopback health port and the signal file). Exactly one
 target may be `self`, because the command finds it by kind rather than taking a target argument.
+A `self` update's `update_timeout_s` is at least 480 seconds, the sum of its pull, recreate, health and
+rollback budgets, or it is left out for the 600 second default (decision #97).
 
 ### Who runs what (this is not cosmetic)
 
