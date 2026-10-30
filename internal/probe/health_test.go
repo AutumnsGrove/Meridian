@@ -310,6 +310,59 @@ func TestHTTPJSON_BadBodyIsDown(t *testing.T) {
 	}
 }
 
+// TestHTTPJSON_ANonSuccessStatusIsDownWhateverTheBodySays: an error page can be JSON, and a probe that
+// reads only the body would call a 500 healthy whenever the field it checks happens to be absent or
+// to match. The status has to be a success before the body means anything.
+func TestHTTPJSON_ANonSuccessStatusIsDownWhateverTheBodySays(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		body   string
+		probe  config.Probe
+	}{
+		{
+			name: "an error status whose body matches", status: http.StatusServiceUnavailable,
+			body:  `{"status":"ok"}`,
+			probe: config.Probe{Path: "status", Equals: "ok", Set: keys("equals")},
+		},
+		{
+			name: "an error status and a field that must not exist", status: http.StatusInternalServerError,
+			body:  `{"message":"boom"}`,
+			probe: config.Probe{Path: "error", Exists: boolPointer(false), Set: keys("exists")},
+		},
+		{
+			name: "a login redirect is not an answer", status: http.StatusFound,
+			body:  `{"status":"ok"}`,
+			probe: config.Probe{Path: "status", Equals: "ok", Set: keys("equals")},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.probe.Kind = "http_json"
+			test.probe.URL = serveBody(t, test.status, test.body)
+			got := probe.HealthRunners["http_json"](context.Background(), httpEnv(), test.probe)
+			if got.Status != probe.StatusDown || got.Code != probe.CodeBadStatus {
+				t.Errorf("health = %+v, want down/bad_status", got)
+			}
+		})
+	}
+}
+
+func TestVitals_ANonSuccessStatusIsAFailureNotAReading(t *testing.T) {
+	_, err := probe.VitalRunners["json_field"](context.Background(), httpEnv(), config.Probe{
+		Kind: "json_field",
+		URL:  serveBody(t, http.StatusInternalServerError, `{"count":0}`),
+		Path: "count",
+		Set:  keys("path"),
+	})
+	if err == nil {
+		t.Fatal("a vital read a number out of a 500 response")
+	}
+	if code := probe.CodeOf(err); code != probe.CodeBadStatus {
+		t.Errorf("code = %q, want bad_status", code)
+	}
+}
+
 func TestHTTPJSON_ABodyOverTheLimitIsDown(t *testing.T) {
 	got := probe.HealthRunners["http_json"](context.Background(),
 		probe.Env{Fetch: probe.NewHTTPFetcher(nil, "meridian-test", 8)},

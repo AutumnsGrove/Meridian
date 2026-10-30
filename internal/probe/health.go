@@ -221,6 +221,12 @@ func fetchJSON(ctx context.Context, env Env, probe config.Probe) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	// An error page can be JSON. Reading its body as the service's own answer would call a 500 healthy
+	// whenever the field a probe checks is absent or happens to match, so only a success has a body
+	// worth reading. Redirects are not followed, so a 3xx lands here too.
+	if response.Status < 200 || response.Status > 299 {
+		return nil, ErrBadStatus
+	}
 	document, err := jsonpath.Decode(bytes.NewReader(response.Body), MaxBodySize)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errBadJSON, err)
@@ -277,6 +283,8 @@ func CodeOf(err error) string {
 		return CodeUnreachable
 	case errors.Is(err, ErrBodyTooLarge):
 		return CodeBodyTooLarge
+	case errors.Is(err, ErrBadStatus):
+		return CodeBadStatus
 	case errors.Is(err, errBadJSON):
 		return CodeBadJSON
 	case errors.Is(err, ErrMissingField):

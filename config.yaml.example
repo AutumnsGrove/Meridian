@@ -219,6 +219,9 @@ services:
 #                   sum of fields over the elements of where
 # <<< docs kinds end
 #
+# JSON kinds (http_json and every json_* vital) read the body only from a 2xx answer. Any other
+# status fails with bad_status, because an error page can be JSON too.
+#
 # Auth (any http probe or vital): {auth: {basic_env: [USER_VAR, PASS_VAR]}}
 #                                {auth: {bearer_env: TOKEN_VAR}}
 #                                {auth: {header: {Name: value}}}

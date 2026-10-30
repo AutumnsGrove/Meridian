@@ -63,6 +63,9 @@ var reasonText = map[string]string{
 // Errors a vital returns besides the fetch and host ones, so the merge step names the reason from the
 // error instead of matching on message text.
 var (
+	// ErrBadStatus means a JSON probe got an answer that was not a success, so its body says nothing
+	// about the service's own state.
+	ErrBadStatus = errors.New("probe: the answer is not a success status")
 	// ErrMissingField means the path or field the config names is not in the answer.
 	ErrMissingField = errors.New("probe: field is missing")
 	// ErrUnexpectedType means the value is there but of a shape a vital does not format.
