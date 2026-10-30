@@ -17,7 +17,7 @@ const minimumPollInterval = time.Second
 
 // cycleTimeout bounds one service's whole cycle: its health probe and every vital together. A service
 // slower than this is reported as a timeout rather than waited for (ARCHITECTURE.md "Polling model").
-const cycleTimeout = 6 * time.Second
+const cycleTimeout = config.MaxPollTimeout
 
 // The stagger that keeps the start-up burst off one second: each service is delayed a little more
 // than the last, up to a cap.

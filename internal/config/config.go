@@ -34,6 +34,11 @@ type Section struct {
 	Title string `yaml:"title"`
 }
 
+// MaxPollTimeout is the longest poll.timeout that means anything: the scheduler gives one service's
+// whole cycle this long, so a larger per-probe timeout would validate and then be silently cut short
+// (docs/ARCHITECTURE.md "Polling model").
+const MaxPollTimeout = 6 * time.Second
+
 // Poll holds the probe cadence and ceilings.
 type Poll struct {
 	Interval     Duration `yaml:"interval"`

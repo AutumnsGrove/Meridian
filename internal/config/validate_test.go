@@ -138,6 +138,12 @@ func brokenConfigs(t *testing.T) []brokenConfig {
 			code:     config.CodePollTimeoutRange,
 		},
 		{
+			name:     "poll timeout above the cycle ceiling the scheduler enforces",
+			document: substitute(t, minimal, "listen: 127.0.0.1:8891", "listen: 127.0.0.1:8891\npoll: {interval: 30s, timeout: 10s}"),
+			path:     "poll.timeout",
+			code:     config.CodePollTimeoutRange,
+		},
+		{
 			name:     "timeout is not shorter than interval",
 			document: substitute(t, minimal, "listen: 127.0.0.1:8891", "listen: 127.0.0.1:8891\npoll: {interval: 5s, timeout: 5s}"),
 			path:     "poll.timeout",

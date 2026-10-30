@@ -120,8 +120,8 @@ func (validator *validator) validatePoll(parsed *Config) {
 	if interval < 5*time.Second {
 		validator.fail("poll.interval", CodePollIntervalRange, "interval must be at least 5s")
 	}
-	if timeout < 500*time.Millisecond || timeout > 30*time.Second {
-		validator.fail("poll.timeout", CodePollTimeoutRange, "timeout must be between 500ms and 30s")
+	if timeout < 500*time.Millisecond || timeout > MaxPollTimeout {
+		validator.fail("poll.timeout", CodePollTimeoutRange, "timeout must be between 500ms and %s", MaxPollTimeout)
 	}
 	if timeout >= interval {
 		validator.fail("poll.timeout", CodePollTimeoutOrder, "timeout must be shorter than interval")
