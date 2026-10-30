@@ -101,6 +101,25 @@ services:
       target: ivy
       actions: [restart, stop, start, update]
 
+  - id: warbler
+    name: Warbler
+    section: everyday
+    icon: mic
+    description: private voice practice
+    url: https://lepotato.taild95077.ts.net:8892
+    probes:
+      health:
+        kind: http_json
+        # Warbler's /healthz is exempt from its Tailscale identity lock, so the probe needs no header
+        url: http://localhost:8892/healthz
+        path: status
+        equals: ok
+      vitals:
+        - {kind: json_field, label: build, url: "http://localhost:8892/healthz", path: version}
+    control:
+      target: warbler
+      actions: [restart, stop, start, update]
+
   - id: bwmon
     name: bwmon
     section: everyday

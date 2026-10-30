@@ -40,6 +40,14 @@
       "criticality": "medium",
       "update": { "kind": "unit", "unit": "ivy-update.service" }
     },
+    "warbler": {
+      "kind": "compose",
+      "dir": "/home/autumn/Warbler",
+      "service": "warbler",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "low",
+      "update": { "kind": "unit", "unit": "warbler-update.service" }
+    },
     "vaultwarden": {
       "kind": "compose",
       "dir": "/home/autumn/vaultwarden",

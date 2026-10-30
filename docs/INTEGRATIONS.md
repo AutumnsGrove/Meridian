@@ -10,6 +10,7 @@ Re-verify before implementing a phase — these are the facts the config depends
 | Meridian | `GET /healthz` | `{"status":"ok"}` | self |
 | Polaris | `GET http://localhost:8899/healthz` | `{"status":"ok","version":"r935.138ed16"}` | health + version vital |
 | Polaris | `/search?q=…` (web route) | — | "Ask Polaris" hand-off; the route reads `?q=` from the URL |
+| Warbler | `GET http://localhost:8892/healthz` | `{"status":"ok","version":"r26.4e14c5f"}` | health + version vital. Exempt from Warbler's own Tailscale identity lock, so the probe needs no header; the response carries nothing else |
 | Ivy | `GET http://localhost:8418/api/v1/health` | `{"status":"ok","version":"r563.85fb96c","databases":{"mirror":"ok","state":"ok"}}` | health + version vital |
 | Ivy | `GET /api/v1/needs-attention` | `{"items":[{"id","from","needs":true,"needsReason","preview",…}]}` | vital: count items where `needs == true` |
 | Ivy | `GET /api/v1/accounts` | `[{"id","address","unread":2,"sync":"ok","syncedAt",…}]` | vital (alt): sum `unread` |
@@ -50,6 +51,7 @@ nothing about the probe changes.
 | AdGuard | % of queries blocked today | the "is it still working" number; a sudden 0% means filtering broke | degraded, not down |
 | Unbound | none | a DNS answer is the health signal; no separate number worth showing | down if the query fails |
 | Polaris | version/build stamp | confirms the last deploy actually landed | degraded |
+| Warbler | version/build stamp | confirms the last deploy actually landed | degraded |
 | SearXNG | none (health only) | it either answers or it doesn't | down |
 | Vaultwarden | none (health only) | no unauthenticated API worth the exposure | down |
 | her-go | none | no web surface; unit state from `status/host.json`, so the dot is real | down if the unit is inactive |
