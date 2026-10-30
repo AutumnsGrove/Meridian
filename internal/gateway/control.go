@@ -41,21 +41,29 @@ func enqueue(deps Deps) http.Handler {
 			return
 		}
 
+		input := control.Input{
+			Action: wire.Action(envelope.Action),
+			Target: envelope.Target,
+			Ack:    envelope.Ack,
+			Ref:    envelope.Ref,
+		}
+
 		// A self-update is the one action whose meaning depends on the container: the digest is
 		// resolved here, written for the host to re-validate, and only then is the request queued.
-		// Everything else is a plain tap.
+		// Everything else is a plain tap. Resolving can wait out a build and leaves a hint behind, so
+		// a tap the queue is going to refuse is refused before either happens.
 		if cfg, _ := deps.current(); isSelfUpdate(cfg, envelope.Action, envelope.Target) {
+			if err := deps.Control.Check(r.Context(), input); err != nil {
+				status, code := refusalStatus(err)
+				writeCode(w, status, code)
+				return
+			}
 			if !writeUpdateHint(w, r, deps, cfg) {
 				return
 			}
 		}
 
-		id, err := deps.Control.Enqueue(r.Context(), control.Input{
-			Action: wire.Action(envelope.Action),
-			Target: envelope.Target,
-			Ack:    envelope.Ack,
-			Ref:    envelope.Ref,
-		})
+		id, err := deps.Control.Enqueue(r.Context(), input)
 		if err != nil {
 			status, code := refusalStatus(err)
 			writeCode(w, status, code)

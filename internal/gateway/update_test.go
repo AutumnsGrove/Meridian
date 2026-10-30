@@ -225,6 +225,42 @@ func TestControl_SelfUpdateRefusesWhenTheCheckFails(t *testing.T) {
 	}
 }
 
+// TestControl_SelfUpdateResolvesNothingForATapThatWillBeRefused: resolving a digest can wait out a
+// four minute build and writes the hint the host reads, so a tap the queue is going to refuse must be
+// refused first.
+func TestControl_SelfUpdateResolvesNothingForATapThatWillBeRefused(t *testing.T) {
+	hub := newTestGateway(t)
+	dirs := hub.mountControl(t)
+	signalDir, digest := selfUpdateConfig(t, hub)
+	calls := 0
+	hub.deps.Update = func(context.Context, *config.Update) (updater.Resolution, error) {
+		calls++
+		return updater.Resolution{Digest: digest, Available: true}, nil
+	}
+
+	first := hub.postControl(t, `{"action":"update","target":"one"}`, nil)
+	if first.Code != http.StatusAccepted {
+		t.Fatalf("first status = %d (%s), want 202", first.Code, first.Body.String())
+	}
+	if err := os.Remove(filepath.Join(signalDir, "requested")); err != nil {
+		t.Fatalf("clear the first hint: %v", err)
+	}
+
+	second := hub.postControl(t, `{"action":"update","target":"one"}`, nil)
+	if second.Code != http.StatusConflict {
+		t.Fatalf("second status = %d (%s), want 409 for a duplicate", second.Code, second.Body.String())
+	}
+	if calls != 1 {
+		t.Errorf("the resolver ran %d times, want once: the duplicate was refused before it", calls)
+	}
+	if _, err := os.Stat(filepath.Join(signalDir, "requested")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a refused tap still wrote the hint: %v", err)
+	}
+	if entries, _ := os.ReadDir(dirs.queue); len(entries) != 1 {
+		t.Errorf("queue holds %d requests, want 1", len(entries))
+	}
+}
+
 func TestControl_OtherUpdatesDoNotResolveADigest(t *testing.T) {
 	hub := newTestGateway(t)
 	hub.mountControl(t)

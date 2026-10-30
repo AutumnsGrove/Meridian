@@ -114,14 +114,8 @@ func (plane Plane) Available() (available bool, reason string) {
 // inbox/queue. The executor checks everything again with the allowlist it trusts; this side's job is
 // to refuse what the config already rules out, before the request reaches root.
 func (plane Plane) Enqueue(ctx context.Context, in Input) (string, error) {
-	cfg := plane.config()
-	if cfg == nil {
-		return "", ErrUnavailable
-	}
-	if available, _ := plane.Available(); !available {
-		return "", ErrUnavailable
-	}
-	if err := ctx.Err(); err != nil {
+	cfg, err := plane.ready(ctx)
+	if err != nil {
 		return "", err
 	}
 
@@ -133,34 +127,8 @@ func (plane Plane) Enqueue(ctx context.Context, in Input) (string, error) {
 	request := wire.Request{
 		ID: id, Action: in.Action, Target: in.Target, Ack: in.Ack, Ref: in.Ref, RequestedAt: now,
 	}
-	if err := wire.ValidateRequest(request, now); err != nil {
+	if err := screen(cfg, request); err != nil {
 		return "", err
-	}
-
-	dns, err := authorise(cfg, in)
-	if err != nil {
-		return "", err
-	}
-
-	queueDir := filepath.Join(cfg.Control.InboxDir, "queue")
-	names, err := queuedNames(queueDir)
-	if err != nil {
-		return "", err
-	}
-	if len(names) >= cfg.Control.QueueDepth {
-		return "", wire.Refuse(wire.CodeQueueFull)
-	}
-	for _, queued := range decodeQueued(queueDir, names) {
-		if queued.Action == in.Action && queued.Target == in.Target {
-			return "", wire.Refuse(wire.CodeCoalesced)
-		}
-	}
-
-	if want := wire.RequiredAck(in.Action, dns); in.Ack != want {
-		if in.Ack == "" {
-			return "", wire.Refuse(wire.CodeMissingAck)
-		}
-		return "", wire.Refuse(wire.CodeBadAck)
 	}
 
 	payload, err := json.Marshal(request)
@@ -176,6 +144,76 @@ func (plane Plane) Enqueue(ctx context.Context, in Input) (string, error) {
 		return "", err
 	}
 	return id, nil
+}
+
+// checkID stands in for the id of a request that will not be written. It is only ever read by the
+// structural check, which wants a well formed one, so Check consumes no randomness and leaves no trace.
+const checkID = "00000000-0000-7000-8000-000000000000"
+
+// Check applies every refusal Enqueue would, and writes nothing. A caller with something expensive to do
+// before queueing, such as resolving the digest a self update pins, asks here first so a tap that is
+// going to be refused costs nothing and leaves nothing behind. It is not a reservation: Enqueue checks
+// again, because the queue can change in between.
+func (plane Plane) Check(ctx context.Context, in Input) error {
+	cfg, err := plane.ready(ctx)
+	if err != nil {
+		return err
+	}
+	return screen(cfg, wire.Request{
+		ID: checkID, Action: in.Action, Target: in.Target, Ack: in.Ack, Ref: in.Ref, RequestedAt: plane.now(),
+	})
+}
+
+// ready returns the configuration when this box has a usable control plane and the caller is still
+// waiting for the answer.
+func (plane Plane) ready(ctx context.Context) (*config.Config, error) {
+	cfg := plane.config()
+	if cfg == nil {
+		return nil, ErrUnavailable
+	}
+	if available, _ := plane.Available(); !available {
+		return nil, ErrUnavailable
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// screen is every refusal the container can give a request before it is written: structure, config
+// policy, the queue's depth, a duplicate already waiting, and the acknowledgement. It reads the queue and
+// changes nothing.
+func screen(cfg *config.Config, request wire.Request) error {
+	if err := wire.ValidateRequest(request, request.RequestedAt); err != nil {
+		return err
+	}
+
+	dns, err := authorise(cfg, Input{Action: request.Action, Target: request.Target})
+	if err != nil {
+		return err
+	}
+
+	queueDir := filepath.Join(cfg.Control.InboxDir, "queue")
+	names, err := queuedNames(queueDir)
+	if err != nil {
+		return err
+	}
+	if len(names) >= cfg.Control.QueueDepth {
+		return wire.Refuse(wire.CodeQueueFull)
+	}
+	for _, queued := range decodeQueued(queueDir, names) {
+		if queued.Action == request.Action && queued.Target == request.Target {
+			return wire.Refuse(wire.CodeCoalesced)
+		}
+	}
+
+	if want := wire.RequiredAck(request.Action, dns); request.Ack != want {
+		if request.Ack == "" {
+			return wire.Refuse(wire.CodeMissingAck)
+		}
+		return wire.Refuse(wire.CodeBadAck)
+	}
+	return nil
 }
 
 // authorise applies config to a tap. It answers whether the target serves DNS, which is what makes a
