@@ -192,6 +192,7 @@ What the control plane allows. This table is the design; `targets.json` is the i
 | `polaris` | compose `~/Polaris` svc `polaris` | ✓ | ✓ | ✓ | `systemctl start polaris-update.service` | |
 | `searxng` | compose `~/Polaris` svc `searxng` | ✓ | ✓ | ✓ | via the Polaris update unit (same pull) | Polaris degrades to no search without it |
 | `ivy` | compose `~/ivy` svc `ivy` | ✓ | ✓ | ✓ | `systemctl start ivy-update.service` | |
+| `warbler` | compose `~/Warbler` svc `warbler` | ✓ | ✓ | ✓ | `systemctl start warbler-update.service` | A bare start of the unit is a complete update: the watcher resolves the newest image digest itself, so no signal file is needed. It pins the digest, takes a database snapshot, recreates, polls health for 120s and rolls back if the new container is not healthy. Design: Warbler's `docs/update.md` |
 | `vaultwarden` | compose `~/vaultwarden` svc `vaultwarden` (after the capture below) | ✓ | ✓ | ✓ | `systemctl start` the compose pull/recreate, or the unit if one is added | Its `docker run` spec must be captured as compose first — see below |
 | `bwmon` | systemd `bwmon.service` (+`Requires=bwmon-nft.service`) | ✓ | ✓ | ✓ | `bwmon update` (git pull + rebuild + restart) | First control target, least critical |
 | `her-go` | systemd `her-go.service` | ✓ | ✓ | ✓ | `{"kind":"command","cmd":["/home/autumn/her-go/her","update"]}` as `autumn` | Same path as Telegram's `/update`: git pull → `go build` → `procmgr` restart (which sudo-restarts itself). Must run as `autumn` — see "Who runs what". `Restart=always` means a stop is a real stop |
