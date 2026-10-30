@@ -27,11 +27,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
+      actions: read
       contents: read
       packages: write
       id-token: write
       attestations: write
     steps:
+      - name: Require a green CI run for the tagged commit
+        # The workflow_run path only fires after a green CI run; a pushed tag has no such guarantee.
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          green=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" \
+            --status success --json databaseId --jq length)
+          if [ "$green" -lt 1 ]; then
+            echo "::error::ci has no green run for ${GITHUB_SHA}; tag a commit that passed CI on main"
+            exit 1
+          fi
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           # workflow_run's GITHUB_SHA is the default branch tip, not the commit CI just tested.
@@ -58,6 +72,7 @@ jobs:
           fi
           {
             echo "IMAGE_TAG=${tag}"
+            echo "REVISION=${REVISION}"
             echo "VERSION=${version}"
             echo "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } >>"$GITHUB_ENV"
@@ -101,8 +116,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
+      actions: read
       contents: write
     steps:
+      - name: Require a green CI run for the tagged commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          green=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" \
+            --status success --json databaseId --jq length)
+          if [ "$green" -lt 1 ]; then
+            echo "::error::ci has no green run for ${GITHUB_SHA}; tag a commit that passed CI on main"
+            exit 1
+          fi
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false

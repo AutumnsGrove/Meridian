@@ -3,6 +3,7 @@ package invariants_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -199,5 +200,29 @@ func TestDeploy_TheObserveListWatchesTheExecutor(t *testing.T) {
 	}
 	if len(list.Valid) != 1 || list.Valid[0] != "meridian-control.path" {
 		t.Errorf("watched units = %v, want the control trigger so a dead executor is visible", list.Valid)
+	}
+}
+
+// TestDeploy_TheReleaseWorkflowExportsEveryEnvVariableItReads: a step's own `env:` block is visible to
+// that step alone. The image job once passed `COMMIT=${{ env.REVISION }}` to the build while REVISION was
+// set only on an earlier step, so every image was stamped with an empty commit and the self-update's
+// commit comparison could never match. Anything read through the `env` context must be written to
+// $GITHUB_ENV by a step before it.
+func TestDeploy_TheReleaseWorkflowExportsEveryEnvVariableItReads(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatalf("read release.yml: %v", err)
+	}
+	workflow := string(data)
+
+	reads := regexp.MustCompile(`\$\{\{\s*env\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}`).FindAllStringSubmatch(workflow, -1)
+	if len(reads) == 0 {
+		t.Fatal("release.yml reads no env context variable; this test is guarding nothing")
+	}
+	for _, read := range reads {
+		name := read[1]
+		if !strings.Contains(workflow, `echo "`+name+`=`) {
+			t.Errorf("release.yml reads ${{ env.%s }} but never writes %s to $GITHUB_ENV", name, name)
+		}
 	}
 }
