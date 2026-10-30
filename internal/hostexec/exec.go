@@ -142,9 +142,13 @@ func (exec *Executor) Execute(ctx context.Context) error {
 // discard deletes a queue entry that is not a request, without ever opening it, and records that it
 // happened. The name itself is not copied into the audit log: it is attacker-chosen text, and the
 // journal is where it belongs.
+//
+// It removes the whole tree, because the container can plant a directory with files inside it, which a
+// plain unlink refuses to delete. The path unit fires for as long as the queue is not empty, so an
+// entry that survives would re-trigger the executor forever and spend every run's budget on itself.
 func (exec *Executor) discard(dirs dirs, root *os.Root, name string) {
 	exec.logf("discarding a queue entry that is not a request: %q", name)
-	if err := root.Remove(filepath.Join("queue", name)); err != nil {
+	if err := root.RemoveAll(filepath.Join("queue", name)); err != nil {
 		exec.logf("could not discard %q: %v", name, err)
 		return
 	}
@@ -204,8 +208,11 @@ func (exec *Executor) loadTrusted() (HostConfig, Targets, error) {
 
 // handle processes one request file and returns the history with its result appended. Every path
 // writes a result, appends an audit line and only then removes the request (decision #62).
+//
+// The return value is named so the recover below can set it: a function that panics and recovers
+// returns its zero values, and a nil history would make every later request in the run look new.
 func (exec *Executor) handle(ctx context.Context, dirs dirs, root *os.Root, name string, targets Targets,
-	deployUser string, history []wire.Result) []wire.Result {
+	deployUser string, history []wire.Result) (updated []wire.Result) {
 	id := strings.TrimSuffix(name, ".json")
 	now := exec.now()
 	result := wire.Result{ID: id, StartedAt: now, FinishedAt: now}
@@ -214,7 +221,12 @@ func (exec *Executor) handle(ctx context.Context, dirs dirs, root *os.Root, name
 		if recovered := recover(); recovered != nil {
 			// A panic is a bug, but the request still gets an answer and the queue still moves.
 			exec.logf("panic while handling a request: %v", recovered)
-			result = wire.Result{ID: id, Code: wire.CodeInternal, StartedAt: now, FinishedAt: now}
+			result = wire.Result{
+				ID: id, Action: result.Action, Target: result.Target, Code: wire.CodeInternal,
+				StartedAt: now, FinishedAt: now,
+			}
+			history = append(history, result)
+			updated = history
 		}
 		result.Output = clipOutput(result.Output)
 		if err := exec.writeResult(dirs, result); err != nil {

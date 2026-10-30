@@ -636,6 +636,67 @@ func TestExecute_RemovesAnEntryThatIsNotARequest(t *testing.T) {
 	}
 }
 
+// TestExecute_RemovesAJunkDirectoryThatHoldsFiles: the path unit fires for as long as the queue is not
+// empty, so an entry the executor cannot delete re-triggers it forever and, 64 at a time, starves every
+// real request. A directory with something inside it is the entry a plain unlink cannot remove.
+func TestExecute_RemovesAJunkDirectoryThatHoldsFiles(t *testing.T) {
+	h := newHarness(t)
+	if err := os.MkdirAll(filepath.Join(h.queueDir, "planted", "deeper"), 0o700); err != nil {
+		t.Fatalf("plant a directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(h.queueDir, "planted", "deeper", "file"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("plant a file: %v", err)
+	}
+	id := newIDAt(t, decideNow)
+	h.queueRequest(t, restartOf(t, id, time.Second))
+
+	if err := h.execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if queued := h.queued(t); len(queued) != 0 {
+		t.Errorf("queue = %v, want every entry gone", queued)
+	}
+	if !h.result(t, id).OK {
+		t.Error("the real request did not run")
+	}
+}
+
+// TestExecute_KeepsItsHistoryWhenARequestPanics: a recovered panic is still a request that was
+// handled, and the requests after it are checked against the same history. Losing it would let a
+// replay that follows the panic run a second time.
+func TestExecute_KeepsItsHistoryWhenARequestPanics(t *testing.T) {
+	h := newHarness(t)
+	panicID := newIDAt(t, decideNow)
+	replayID := newIDAt(t, decideNow.Add(time.Second))
+
+	build := h.exec.Build
+	h.exec.Build = func(in hostexec.BuildInput) (hostexec.Command, error) {
+		if in.ID == panicID {
+			panic("the builder exploded")
+		}
+		return build(in)
+	}
+	h.writeResult(t, wire.Result{ID: replayID, Action: wire.ActionRestart, Target: "app", OK: true,
+		StartedAt: decideNow.Add(-time.Hour), FinishedAt: decideNow.Add(-time.Hour)})
+	h.queueRequest(t, restartOf(t, panicID, time.Second))
+	h.queueRequest(t, restartOf(t, replayID, time.Second))
+
+	if err := h.execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if got := h.result(t, panicID); got.Code != wire.CodeInternal {
+		t.Errorf("the panicking request answered %q, want internal", got.Code)
+	}
+	if got := h.result(t, replayID); got.Code != wire.CodeReplay {
+		t.Errorf("the replay after a panic answered %q, want replay", got.Code)
+	}
+	for _, call := range h.built {
+		if call.id == replayID {
+			t.Error("the replay reached the command builder")
+		}
+	}
+}
+
 func TestExecute_ProcessesAtMostSixtyFourRequestsPerRun(t *testing.T) {
 	h := newHarness(t)
 	for i := 0; i < 100; i++ {
