@@ -121,18 +121,54 @@ func cancellationIsArmed(request wire.Request, history []wire.Result, now time.T
 // coalescedWith finds a result for the same action on the same target that started inside the window.
 // A failed action does not count: pressing restart again after a failed restart is the whole point of
 // the button. Neither does a coalesced answer, so repeated taps cannot extend the window forever.
+//
+// A duplicate is the same tap twice, so two things end the match. A cancel only matches a cancel that
+// names the same stop. And any command that ran on the target after the match, successful or not,
+// has moved the target on: a restart, a stop and a restart again is three actions, and answering the
+// last one as a duplicate would report success while the service stays stopped.
 func coalescedWith(request wire.Request, history []wire.Result, now time.Time) (string, bool) {
 	for index := range history {
 		result := &history[index]
 		if result.ID == request.ID || !result.OK || result.Code == wire.CodeCoalesced {
 			continue
 		}
-		if result.Action != request.Action || result.Target != request.Target {
+		if result.Action != request.Action || result.Target != request.Target || result.Ref != request.Ref {
 			continue
 		}
-		if now.Sub(result.StartedAt) <= CoalesceWindow {
+		if now.Sub(result.StartedAt) > CoalesceWindow {
+			continue
+		}
+		if !movedOnSince(request, result, history) {
 			return result.ID, true
 		}
 	}
 	return "", false
+}
+
+// movedOnSince reports whether a different action ran on the request's target after prior started.
+func movedOnSince(request wire.Request, prior *wire.Result, history []wire.Result) bool {
+	for index := range history {
+		later := &history[index]
+		if later.ID == request.ID || later.Target != request.Target || later.Action == request.Action {
+			continue
+		}
+		if later.StartedAt.After(prior.StartedAt) && ranACommand(later) {
+			return true
+		}
+	}
+	return false
+}
+
+// ranACommand is true for a result whose command was started: it succeeded, or it failed after the
+// executor had begun. A refusal, a replay and a coalesced answer never touched the target.
+func ranACommand(result *wire.Result) bool {
+	if result.OK {
+		return result.Code == ""
+	}
+	switch result.Code {
+	case wire.CodeExecFailed, wire.CodeTimeout, wire.CodeNotActiveAfter, wire.CodeRestoreFailed:
+		return true
+	default:
+		return false
+	}
 }

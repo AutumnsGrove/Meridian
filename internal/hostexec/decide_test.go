@@ -271,6 +271,69 @@ func TestDecide_DoesNotCoalesceWhatShouldRunAgain(t *testing.T) {
 	}
 }
 
+// TestDecide_DoesNotCoalesceAcrossAnInterveningAction holds the point of coalescing: a duplicate is
+// the same tap twice, not the same action after the target has been moved to a different state. A
+// restart, a stop and a restart again inside the window must run the second restart, or the page
+// reports success while the service stays stopped.
+func TestDecide_DoesNotCoalesceAcrossAnInterveningAction(t *testing.T) {
+	restart := wire.Result{
+		ID: otherID, Action: wire.ActionRestart, Target: "app", OK: true,
+		StartedAt: decideNow.Add(-40 * time.Second),
+	}
+	stop := wire.Result{
+		ID: refID, Action: wire.ActionStop, Target: "app", OK: true,
+		StartedAt: decideNow.Add(-20 * time.Second),
+	}
+	elsewhere := stop
+	elsewhere.Target = "resolver"
+	refusedStop := stop
+	refusedStop.OK, refusedStop.Code = false, wire.CodeMissingAck
+	coalescedStop := stop
+	coalescedStop.Code = wire.CodeCoalesced
+
+	tests := []struct {
+		name    string
+		history []wire.Result
+		wantRun bool
+	}{
+		{"a stop ran in between", []wire.Result{stop, restart}, true},
+		{"a failed stop in between may have changed the target", []wire.Result{
+			{ID: refID, Action: wire.ActionStop, Target: "app", Code: wire.CodeExecFailed, StartedAt: stop.StartedAt}, restart,
+		}, true},
+		{"a stop on another target changes nothing", []wire.Result{elsewhere, restart}, false},
+		{"a refused stop never ran", []wire.Result{refusedStop, restart}, false},
+		{"a coalesced stop never ran", []wire.Result{coalescedStop, restart}, false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			decision := hostexec.Decide(decideRequest(wire.ActionRestart, "app"), decideTargets(), test.history, decideNow)
+			if decision.Run != test.wantRun {
+				t.Fatalf("Run = %v, want %v (decision %+v)", decision.Run, test.wantRun, decision)
+			}
+		})
+	}
+}
+
+// TestDecide_DoesNotCoalesceACancelForADifferentStop: two cancels are the same tap only when they
+// name the same stop.
+func TestDecide_DoesNotCoalesceACancelForADifferentStop(t *testing.T) {
+	const earlierStopID = "0192f0c4-6c1a-7f3b-9a10-2b6f7c1d8e40"
+	restoreAt := decideNow.Add(5 * time.Minute)
+	history := []wire.Result{
+		{ID: refID, Action: wire.ActionStop, Target: "resolver", OK: true, RestoreAt: &restoreAt,
+			StartedAt: decideNow.Add(-30 * time.Second)},
+		{ID: otherID, Action: wire.ActionCancelAutorestore, Target: "resolver", Ref: earlierStopID, OK: true,
+			StartedAt: decideNow.Add(-20 * time.Second)},
+	}
+	request := decideRequest(wire.ActionCancelAutorestore, "resolver")
+	request.Ref = refID
+
+	decision := hostexec.Decide(request, decideTargets(), history, decideNow)
+	if !decision.Run {
+		t.Fatalf("Decide = %+v, want a cancel for a different stop to run", decision)
+	}
+}
+
 // FuzzDecide checks the pure core against a deliberately dumb reference: accepted only when every
 // documented condition holds, and the refusal code is one of the closed set.
 func FuzzDecide(f *testing.F) {
