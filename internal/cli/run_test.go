@@ -319,5 +319,12 @@ func TestRun_WatchReloadsWhenTheFileChanges(t *testing.T) {
 	})
 
 	cancel()
-	<-served
+	select {
+	case err := <-served:
+		if err != nil {
+			t.Fatalf("Run() = %v, want nil", err)
+		}
+	case <-time.After(6 * time.Second):
+		t.Fatal("Run() ignored the cancelled context")
+	}
 }
