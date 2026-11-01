@@ -7,7 +7,7 @@
 # Base images are pinned by digest and kept fresh by Dependabot. When bumping one, take the digest
 # from the registry's index manifest, not from a tag.
 
-FROM node:26-bookworm-slim@sha256:28147155d47dc31abe0a46e0d12b59b2fb3d0a2dcc5dc65fce76a074180b16fe AS web
+FROM node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9 AS web
 
 # The version CI and the lockfile were written with. pnpm refuses a different major silently, so it is
 # named here rather than left to corepack's default.
