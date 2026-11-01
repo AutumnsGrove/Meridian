@@ -22,7 +22,8 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    restart: unless-stopped
+    restart: always
+    command: ["--watch"]
     pids_limit: 64
     mem_limit: 128m
     env_file:

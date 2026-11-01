@@ -308,6 +308,12 @@ install_file "$repo_root/deploy/docker-compose.yml" "$deploy_dir/docker-compose.
 if [ -e "$deploy_dir/docker-compose.yml" ] && ! grep -q 'update-signal:/update-signal' "$deploy_dir/docker-compose.yml"; then
 	note "warning: $deploy_dir/docker-compose.yml does not mount ./update-signal; add it before updating"
 fi
+# An installed compose file is never overwritten, so an older one keeps its restart policy. That is not
+# cosmetic: unless-stopped honours Docker's manual-stop flag at boot, and the kill API sets it for any
+# signal, including a SIGHUP reload (decision #100). The box stayed down for eleven hours because of it.
+if [ -e "$deploy_dir/docker-compose.yml" ] && grep -q 'restart: unless-stopped' "$deploy_dir/docker-compose.yml"; then
+	note "warning: $deploy_dir/docker-compose.yml still sets restart: unless-stopped; set restart: always and add command: [\"--watch\"] (decision #100)"
+fi
 install_file "$repo_root/config.yaml.example" "$deploy_dir/config.yaml" \
 	"$deploy_user" "$deploy_group" 0644
 

@@ -39,6 +39,7 @@ type composeService struct {
 	CapDrop     []string `yaml:"cap_drop"`
 	SecurityOpt []string `yaml:"security_opt"`
 	Restart     string   `yaml:"restart"`
+	Command     []string `yaml:"command"`
 	PidsLimit   int      `yaml:"pids_limit"`
 	MemLimit    string   `yaml:"mem_limit"`
 	EnvFile     []string `yaml:"env_file"`
@@ -99,7 +100,8 @@ func checkComposeInvariants(root string) error {
 		{service.ReadOnly, "read_only must be true"},
 		{len(service.CapDrop) == 1 && strings.EqualFold(service.CapDrop[0], "ALL"), "cap_drop must drop ALL capabilities"},
 		{slices.Contains(service.SecurityOpt, "no-new-privileges:true"), "security_opt must set no-new-privileges"},
-		{service.Restart == "unless-stopped", "restart must be unless-stopped"},
+		{service.Restart == "always", "restart must be always: unless-stopped treats the kill API as a manual stop and refuses to start the container again after a reboot (decision #100)"},
+		{slices.Contains(service.Command, "--watch"), "command must enable --watch, so a config edit reloads without the kill API, which marks the container manually stopped (decision #100)"},
 		{service.PidsLimit > 0, "pids_limit must be set"},
 		{service.MemLimit != "", "mem_limit must be set"},
 		{service.Image == "${MERIDIAN_IMAGE}", "image must be ${MERIDIAN_IMAGE} so the self-update can pin a digest in .env"},

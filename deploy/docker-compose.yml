@@ -10,6 +10,13 @@
 #
 # The image reference comes from .env so the self-update can pin it by digest. The uid and gid are the
 # deploy user's, so the status directory is writable without being world-writable.
+#
+# `restart: always` and `--watch` are a pair, and both are load-bearing (decision #100). Docker marks a
+# container "manually stopped" for *any* signal sent through the kill API, including the
+# `docker kill -s HUP` this project used to recommend for a reload. `unless-stopped` honours that flag
+# at boot, so one reload would silently keep the dashboard down after the next reboot — which is how
+# the box failed on 2026-11-01. `always` ignores the flag across a daemon start, and `--watch` means a
+# config edit never needs the kill API at all.
 services:
   meridian:
     image: ${MERIDIAN_IMAGE}
@@ -23,7 +30,8 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    restart: unless-stopped
+    restart: always
+    command: ["--watch"]
     pids_limit: 64
     mem_limit: 128m
     env_file:
