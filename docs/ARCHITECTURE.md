@@ -186,8 +186,11 @@ documented at the bottom of `config.yaml.example`.
 
 **Config reload:** SIGHUP (or `meridian run --watch`) re-reads the file and swaps the probe set
 without dropping the listener or restarting the container — adding a service shouldn't need a
-deploy. A config that fails validation on reload is rejected as a whole and the previous one stays
-live, with a banner on the page saying so.
+deploy. The shipped compose file turns `--watch` on, so the deployment reloads from the file alone
+and never signals the container: Docker records any signal sent through the kill API as a manual
+stop, and that is what kept the box down after its weekly reboot on 2026-11-01 (decision #100). A
+config that fails validation on reload is rejected as a whole and the previous one stays live, with
+a banner on the page saying so.
 
 ### Portability check (a test, not a promise)
 

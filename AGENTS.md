@@ -38,7 +38,9 @@ for privileged actions. The design is settled; [docs/DECISIONS.md](docs/DECISION
 
 Config only, no code. Add a `services:` entry to `config.yaml` with a `section`, a `probe`, an
 optional `vital`, the click-through `url`, and an `icon` (a lucide name or a local image). Then
-reload: `docker kill -s HUP meridian`, or run the binary with `--watch`. Check it with
+reload: it picks the change up within a couple of seconds (`--watch`); SIGHUP does the same. Do not
+send that signal through Docker — the deployed container watches the file, and Docker records any
+kill-API signal as a manual stop (decision #100). Check it with
 `cat /etc/meridian/targets.json | docker exec -i meridian /meridian doctor --allowlist -`, which
 probes once and explains anything red. If it should also have buttons, see "add a control target";
 the launcher never gains one on its own.

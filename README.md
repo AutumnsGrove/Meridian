@@ -65,7 +65,10 @@ search buttons and every probe are configuration.
   meridian /meridian docs kinds` prints it from the code's own table, and a test compares the two.
 - Secrets are environment variable **names** in `config.yaml`, and values in `~/Meridian/.env` only.
   They never reach the browser.
-- Reload without a restart: `docker kill -s HUP meridian` (or run the binary with `--watch`).
+- Reload without a restart: edit the file. The deployed container runs `meridian run --watch`, so a
+  change is live within a couple of seconds and no signal is involved. SIGHUP does the same thing,
+  but don't send it with `docker kill -s HUP`: Docker records *any* kill-API signal as a manual stop,
+  which is how the box stayed down after its weekly reboot on 2026-11-01 (decision #100).
 - Ask it what is wrong: `cat /etc/meridian/targets.json | docker exec -i meridian /meridian doctor
   --allowlist -`. The command is read-only and explains the config against the world.
 - Control targets are the privileged half and live outside the container: add them to

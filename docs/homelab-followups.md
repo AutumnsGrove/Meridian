@@ -32,8 +32,8 @@ Alongside `docs/polaris.md`, and covering the parts that only exist on the box:
 - Install: `sudo deploy/install.sh --version vX.Y.Z` from a checkout; the first run creates
   `~/Meridian` and `/etc/meridian`.
 - Config: `~/Meridian/config.yaml` for services, sections and probes; `/etc/meridian/targets.json`
-  for what the buttons may act on; `/etc/meridian/observe.json` for extra units to watch. Reload with
-  `docker kill -s HUP meridian`.
+  for what the buttons may act on; `/etc/meridian/observe.json` for extra units to watch. Reload by
+  editing the file: the deployment runs with `--watch`.
 - Self-update and its rollback: update from `/control`, digest pinned in `.env`, the previous image
   restored if `/healthz` does not answer within 120 seconds.
 - The host binary is upgraded separately, by hand: `sudo deploy/install.sh --upgrade-host`.
