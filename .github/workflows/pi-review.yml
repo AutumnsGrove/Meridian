@@ -88,7 +88,9 @@ jobs:
           if [ -f Cargo.toml ]; then found=1; run cargo fetch; fi
           if [ -f Gemfile.lock ]; then found=1; run bundle install; fi
           if [ -f composer.lock ]; then found=1; run composer install --no-interaction; fi
-          if ls *.sln >/dev/null 2>&1; then found=1; run dotnet restore; fi
+          # compgen, not `ls *.sln`: a bare glob lets `ls` read a name beginning
+          # with `-` as an option (SC2035), and this block runs under bash.
+          if compgen -G "*.sln" >/dev/null; then found=1; run dotnet restore; fi
           if [ "$failed" -ne 0 ]; then
             echo "::warning::Some dependency installs failed; the reviewer will be told tests may not run."
             exit 1
