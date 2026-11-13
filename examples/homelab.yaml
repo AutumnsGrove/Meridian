@@ -144,6 +144,33 @@ services:
       target: bwmon
       actions: [restart, stop, start, update]
 
+  - id: outpost
+    name: Outpost
+    section: everyday
+    icon: gamepad-2
+    description: minecraft, only while playing
+    url: https://lepotato.taild95077.ts.net:8896
+    probes:
+      health:
+        # The listener is loopback-only with tailscale serve in front, and /health is a static
+        # string, so this probe is cheap and needs no token. /api/status would need one if
+        # OUTPOST_TOKEN were ever set; it is deliberately unset (see docs/outpost.md).
+        kind: http_status
+        url: http://localhost:8896/health
+      vitals:
+        - {kind: json_field, label: state, url: "http://localhost:8896/api/status", path: state}
+        - {kind: json_field, label: players, url: "http://localhost:8896/api/status", path: players}
+        # Money, in euros because that is what Hetzner bills. Zero while offline is correct:
+        # the daemon is healthy, nothing is rented, nothing is billing.
+        - {kind: json_field, label: this session, url: "http://localhost:8896/api/status", path: sessionCost, prefix: "€", decimals: 3}
+    control:
+      target: outpost
+      # restart only, deliberately. Stopping the daemon while a Minecraft VPS is rented would
+      # leave it billing with nobody to reach the idle timeout — the one failure this service
+      # exists to prevent. Starting a session is `outpost start` from a shell; the control
+      # plane has no HTTP target kind (Meridian #19 has the three options).
+      actions: [restart]
+
   - id: searxng
     name: SearXNG
     section: everyday
