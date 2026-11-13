@@ -7,8 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/autumnsgrove/meridian/internal/config"
 	"github.com/autumnsgrove/meridian/internal/hostexec"
 	"github.com/autumnsgrove/meridian/internal/hostprobe"
+	"github.com/autumnsgrove/meridian/internal/wire"
 )
 
 // The deployment files are the other half of the privilege story: the executor is only as narrow as
@@ -181,6 +183,77 @@ func TestDeploy_TheHomelabAllowlistKeepsTheHazards(t *testing.T) {
 	host, known := targets["host"]
 	if !known || !host.Offers("reboot") || len(host.Actions) != 1 {
 		t.Error("host must offer reboot and nothing else (decision #18)")
+	}
+}
+
+// TestDeploy_EveryControlTargetIsAllowlisted is ARCHITECTURE #2 checked where it can still be
+// fixed: the dashboard's config names the targets the page offers and the host's allowlist decides
+// what is possible, and the two must agree. Meridian #22 is what happens when they do not — eight of
+// twelve tiles in the deployed config carried buttons the executor had no target for, so every press
+// either errored or did nothing. The dashboard's own copy of the pair is examples/homelab.yaml and
+// examples/targets.homelab.json, so that is where the check belongs.
+func TestDeploy_EveryControlTargetIsAllowlisted(t *testing.T) {
+	cfg, _, err := config.Load(filepath.Join(repoRoot, "examples", "homelab.yaml"))
+	if err != nil {
+		t.Fatalf("the worked example does not load: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(repoRoot, "examples", "targets.homelab.json"))
+	if err != nil {
+		t.Fatalf("read the homelab allowlist: %v", err)
+	}
+	targets, err := hostexec.LoadTargets(data, "autumn")
+	if err != nil {
+		t.Fatalf("the homelab allowlist does not load: %v", err)
+	}
+
+	for _, service := range cfg.Services {
+		if service.Control == nil {
+			continue
+		}
+		target, known := targets[service.Control.Target]
+		if !known {
+			t.Errorf("service %q offers control target %q, which the allowlist does not have: the page would draw a button nothing can press",
+				service.ID, service.Control.Target)
+			continue
+		}
+		for _, action := range service.Control.Actions {
+			if !target.Offers(wire.Action(action)) {
+				t.Errorf("service %q asks target %q for %q, which its allowlist entry does not offer %v",
+					service.ID, service.Control.Target, action, target.Actions)
+			}
+		}
+	}
+}
+
+// TestDeploy_TheAllowlistHasNoUnusedTargets is the other direction, softly: a target nothing offers
+// is not a bug (the reboot command and future tiles live there), but a target the page offers under
+// a name no service uses usually means a rename landed on one file and not the other.
+func TestDeploy_EveryAllowlistTargetIsReachableOrKnown(t *testing.T) {
+	cfg, _, err := config.Load(filepath.Join(repoRoot, "examples", "homelab.yaml"))
+	if err != nil {
+		t.Fatalf("the worked example does not load: %v", err)
+	}
+
+	claimed := map[string]bool{"host": true} // `reboot: true` is a setting, not a service tile
+	for _, service := range cfg.Services {
+		if service.Control != nil {
+			claimed[service.Control.Target] = true
+		}
+	}
+
+	data, err := os.ReadFile(filepath.Join(repoRoot, "examples", "targets.homelab.json"))
+	if err != nil {
+		t.Fatalf("read the homelab allowlist: %v", err)
+	}
+	targets, err := hostexec.LoadTargets(data, "autumn")
+	if err != nil {
+		t.Fatalf("the homelab allowlist does not load: %v", err)
+	}
+	for id := range targets {
+		if !claimed[id] {
+			t.Errorf("allowlist target %q is not named by any service in the worked example, so nobody can reach it", id)
+		}
 	}
 }
 

@@ -48,6 +48,21 @@
       "criticality": "low",
       "update": { "kind": "unit", "unit": "warbler-update.service" }
     },
+    "outpost": {
+      "kind": "systemd",
+      "unit": "outpost.service",
+      "actions": ["start", "stop", "restart"],
+      "criticality": "high",
+      "no_update_reason": "no updater; deploy is a rebuilt linux/arm64 binary copied to the box"
+    },
+    "pixelsort": {
+      "kind": "compose",
+      "dir": "/home/autumn/Pixelsort",
+      "service": "pixelsort",
+      "actions": ["start", "stop", "restart", "update"],
+      "criticality": "low",
+      "update": { "kind": "unit", "unit": "pixelsort-update.service" }
+    },
     "vaultwarden": {
       "kind": "compose",
       "dir": "/home/autumn/vaultwarden",

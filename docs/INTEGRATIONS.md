@@ -22,6 +22,17 @@ Re-verify before implementing a phase — these are the facts the config depends
 | AdGuard | `GET /control/stats` (basic auth) | the admin user/pass (reused deliberately) | vital: `num_blocked_filtering / num_dns_queries` |
 | Unbound | UDP DNS query to `127.0.0.1:5335` | `NOERROR` + an answer | health (unit state comes from `status/host.json`) |
 | tailscaled | `tailscale status --json` on the host, copied into `status/host.json` | `Self.Online`, `Self.ExitNodeOption`, `Peer[]` | Tailscale tile: exit-node state + peers online |
+| Pixelsort † | `GET http://localhost:8895/healthz` | `{"status":"ok","version":"r…"}` | health + build vital |
+| Pixelsort † | `GET /api/usage` | `{"used_bytes","budget_bytes","runs",…}` | vitals: disk as `used_bytes / budget_bytes`, and `runs` as the Archive count |
+
+† Pixelsort was added later than the rest of this table, so its rows are the one exception to the
+“called against the live box on 2026-10-23” line above: the endpoints were checked against the live
+config on the potato on **2026-11-05**, by the agent that deployed it, and recorded in that
+repository's `deploy/meridian/`. Re-verify with `curl -s localhost:8895/api/usage` before trusting
+the vital names, which are the fragile part.
+
+Outpost is deliberately absent: it is not deployed, and a probe for a service that is not installed
+is a permanently red tile (Meridian #19). Its reserved shape is in that issue, not here.
 
 ## The Ivy `Host` detail (this will bite you)
 
