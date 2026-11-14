@@ -228,6 +228,15 @@ func TestRun_ServesProbesAndReloadsWithoutRestarting(t *testing.T) {
 	})
 
 	// Shutting down returns promptly and leaves the address free.
+	//
+	// Close the pool first. Every helper above builds a throwaway http.Client with a nil Transport,
+	// so they all share http.DefaultTransport and leave its pooled connections open when they
+	// return. A connection the client dialled and never spoke on sits in the server's StateNew,
+	// and http.Server.Shutdown deliberately refuses to close a StateNew connection younger than
+	// five seconds (golang/go#22682) — exactly gateway.shutdownDrain. Without this line the drain
+	// always burns its whole budget and returns context.DeadlineExceeded, which read as a flaky
+	// shutdown rather than as the test leaving sockets behind.
+	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 	signals <- syscall.SIGTERM
 	select {
 	case err := <-served:

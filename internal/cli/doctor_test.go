@@ -2,12 +2,14 @@ package cli_test
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/autumnsgrove/meridian/internal/cli"
 )
@@ -131,6 +133,36 @@ func TestDoctor_PassesAHealthyConfigAndSaysSo(t *testing.T) {
 	}
 	if strings.Contains(stdout, "fail") {
 		t.Errorf("report = %q, want no failures", stdout)
+	}
+}
+
+// TestDoctor_HostProbesReadTheSnapshotAtTheConfiguredMaxAge is the wiring the doctor command used to
+// be missing: probe.readHost treats a zero HostMaxAge as "no clock, no judgement" and answers
+// host_unavailable, so a doctor that never passed host_status.max_age reported every host_unit and
+// host_field check as a failure no matter how fresh the snapshot was.
+func TestDoctor_HostProbesReadTheSnapshotAtTheConfiguredMaxAge(t *testing.T) {
+	upstream := healthyUpstream(t)
+	snapshotPath := filepath.Join(t.TempDir(), "host.json")
+	snapshot := fmt.Sprintf(
+		`{"at":%q,"host":{"uptime_s":1,"load1":0},"units":{"alpha.service":{"active":true,"since":%q}}}`+"\n",
+		time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano))
+	if err := os.WriteFile(snapshotPath, []byte(snapshot), 0o600); err != nil {
+		t.Fatalf("write snapshot: %v", err)
+	}
+
+	body := fmt.Sprintf("host_status: {file: %s, max_age: 5m}\n", snapshotPath) +
+		strings.Replace(strings.Replace(doctorService, "%s", upstream.URL, 1),
+			`{kind: http_status, url: "`+upstream.URL+`/health", expect: [200]}`,
+			"{kind: host_unit, unit: alpha.service}", 1)
+	path := doctorConfig(t, body)
+
+	code, stdout, stderr := doctorRun(t, "", "doctor", "--config", path)
+
+	if strings.Contains(stdout, "host_unavailable") {
+		t.Errorf("report = %q, want a snapshot read at max_age, not host_unavailable (stderr %q)", stdout, stderr)
+	}
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0 for a fresh snapshot (stdout %q)", code, stdout)
 	}
 }
 

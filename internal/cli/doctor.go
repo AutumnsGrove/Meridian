@@ -40,11 +40,20 @@ func Doctor(ctx context.Context, configPath, allowlistPath string, stdin io.Read
 	host := newHostReader()
 	host.SetPath(hostPath(cfg))
 
+	// host_status.max_age is how the readers judge freshness, and probe.readHost answers
+	// host_unavailable rather than green when it is zero. Leaving it out made every host_unit and
+	// host_field check fail no matter how fresh the snapshot was.
+	var hostMaxAge time.Duration
+	if cfg.HostStatus != nil {
+		hostMaxAge = time.Duration(cfg.HostStatus.MaxAge)
+	}
+
 	return doctor.Run(ctx, cfg, probe.Env{
-		Fetch:   probe.NewHTTPFetcher(os.Getenv, probeUserAgent, maxProbeBody),
-		Resolve: probe.NewDNSResolver(),
-		Host:    host.Read,
-		Now:     time.Now,
+		Fetch:      probe.NewHTTPFetcher(os.Getenv, probeUserAgent, maxProbeBody),
+		Resolve:    probe.NewDNSResolver(),
+		Host:       host.Read,
+		HostMaxAge: hostMaxAge,
+		Now:        time.Now,
 	}, allow)
 }
 

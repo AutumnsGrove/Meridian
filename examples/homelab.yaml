@@ -239,6 +239,37 @@ services:
       health: {kind: http_status, url: "http://localhost:8081/"}
     control:
       target: vaultwarden
+      # No update: its run spec is still a docker run, not compose, so there is nothing for the
+      # executor to pull and recreate (decision #22). The allowlist refuses update for the same
+      # reason, and a button it would refuse is worse than no button (Meridian #22).
+      actions: [restart, stop, start]
+
+  - id: pixelsort
+    name: Pixelsort
+    section: everyday
+    icon: sparkles
+    description: pixel sorter and gallery
+    url: https://lepotato.taild95077.ts.net:8895
+    probes:
+      health:
+        kind: http_json
+        url: http://localhost:8895/healthz
+        path: status
+        equals: ok
+      vitals:
+        - {kind: json_field, label: build, url: "http://localhost:8895/healthz", path: version}
+        # /api/usage reports the gallery's disk against its budget, and "runs" is how many images
+        # are in the Archive. Both were checked against the live config on the potato, 2026-11-05.
+        - kind: json_ratio_pct
+          label: disk
+          url: http://localhost:8895/api/usage
+          numerator: used_bytes
+          denominator: budget_bytes
+          decimals: 0
+          suffix: "% disk"
+        - {kind: json_field, label: archive, url: "http://localhost:8895/api/usage", path: runs}
+    control:
+      target: pixelsort
       actions: [restart, stop, start, update]
 
   - id: tailscale
