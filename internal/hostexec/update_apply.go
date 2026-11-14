@@ -104,6 +104,19 @@ func (updater *Updater) Apply(ctx context.Context) error {
 	return nil
 }
 
+// composeRunAs is the user docker compose runs as. The executor itself is root and must drop to the
+// deploy user so a pull or a recreate leaves no root-owned files in the project (decision #31). A
+// self update is different: builders.go's updateBySelf re-executes `meridian-host update` as the
+// deploy user already, and asking syscall to setuid into the account the process is already in fails
+// with EPERM ("fork/exec /usr/bin/docker: operation not permitted") before docker is ever forked. So
+// drop privileges only when there are privileges to drop, and otherwise inherit.
+func composeRunAs(deployUser string, euid int) string {
+	if euid == 0 {
+		return deployUser
+	}
+	return ""
+}
+
 // compose runs one docker compose verb for the allowlisted project and service. The argv is built
 // only from the allowlist; the request contributes nothing.
 func (updater *Updater) compose(ctx context.Context, timeout time.Duration, verb string, extra ...string) error {
@@ -115,7 +128,8 @@ func (updater *Updater) compose(ctx context.Context, timeout time.Duration, verb
 	actionCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	code, output, err := updater.Run(actionCtx, Command{
-		Argv: argv, RunAs: updater.DeployUser, Dir: settings.Dir, Timeout: timeout, NoNewGroup: true,
+		Argv: argv, RunAs: composeRunAs(updater.DeployUser, os.Geteuid()), Dir: settings.Dir,
+		Timeout: timeout, NoNewGroup: true,
 	})
 	switch {
 	case err != nil:

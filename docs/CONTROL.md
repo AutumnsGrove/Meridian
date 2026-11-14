@@ -183,6 +183,14 @@ the deploy-user cases, and an explicit minimal environment (`PATH` including `/u
 `LANG`) — Go lives in `/usr/local/bin` on this box, and the deploy user's interactive `PATH` is not
 what a systemd oneshot inherits.
 
+**Privileges are dropped only when there are privileges to drop.** A `self` update is the one row
+where the executor has already dropped them: it re-executes `meridian-host update` *as* the deploy
+user, and that process must inherit its own identity rather than ask syscall to setuid into the
+account it is already in — a non-root process cannot, and the failure arrives as
+`fork/exec /usr/bin/docker: operation not permitted` from the pull, after the digest was already
+pinned (decision #103). `composeRunAs` makes the choice from `geteuid`, and an inherited command gets
+its own `HOME` rather than root's.
+
 ## The action matrix
 
 What the control plane allows. This table is the design; `targets.json` is the implementation.
@@ -263,10 +271,11 @@ of what an "emergency remote control" should offer.
 
 ### Meridian restarting itself
 
-The executor writes the result, then `systemctl restart meridian.service`. The container is gone
-before it can read its own result — which is correct. The UI (loaded in a browser, not in the
-container) reconnects, re-fetches `/api/control/status`, finds the finished result by id and shows
-it. Same reconnect path as the reboot, so it gets tested for free.
+The executor writes the result, then `docker compose up -d` recreates the container (decision #100:
+there is no `meridian.service` on the box, only the Compose project at `~/Meridian` with
+`restart: always`). The container is gone before it can read its own result — which is correct. The
+UI (loaded in a browser, not in the container) reconnects, re-fetches `/api/control/status`, finds the
+finished result by id and shows it. Same reconnect path as the reboot, so it gets tested for free.
 
 ### Update validation
 

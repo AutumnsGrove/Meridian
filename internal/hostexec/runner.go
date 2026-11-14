@@ -83,45 +83,54 @@ func Runner(logf func(string, ...any)) Commander {
 	}
 }
 
-// identity resolves the user a command runs as and the environment it needs. An empty RunAs is root,
-// which needs no Credential: the executor is already root, and asking syscall to setuid to 0 would
-// only make the tests depend on being root.
+// identity resolves the user a command runs as and the environment it needs. An empty RunAs means
+// "as the executor already is": root when the executor was started by systemd as root, and the
+// deploy user when builders.go's updateBySelf re-executed `meridian-host update` as that user. Asking
+// syscall to setuid to the account we are already in is EPERM for a non-root process, which is the
+// other half of the self update's "operation not permitted".
 func identity(runAs string) (home string, credential *syscall.Credential, err error) {
-	name := runAs
-	if name == "" {
-		name = "root"
-	}
-	account, err := user.Lookup(name)
-	if err != nil {
-		return "", nil, fmt.Errorf("hostexec: run as %q: %w", name, err)
-	}
 	if runAs == "" {
-		return account.HomeDir, nil, nil
+		return currentIdentity()
+	}
+	account, err := user.Lookup(runAs)
+	if err != nil {
+		return "", nil, fmt.Errorf("hostexec: run as %q: %w", runAs, err)
 	}
 
 	uid, err := strconv.ParseUint(account.Uid, 10, 32)
 	if err != nil {
-		return "", nil, fmt.Errorf("hostexec: run as %q: uid %q: %w", name, account.Uid, err)
+		return "", nil, fmt.Errorf("hostexec: run as %q: uid %q: %w", runAs, account.Uid, err)
 	}
 	gid, err := strconv.ParseUint(account.Gid, 10, 32)
 	if err != nil {
-		return "", nil, fmt.Errorf("hostexec: run as %q: gid %q: %w", name, account.Gid, err)
+		return "", nil, fmt.Errorf("hostexec: run as %q: gid %q: %w", runAs, account.Gid, err)
 	}
 	// The supplementary groups are what make `docker` usable: the deploy user's membership of the
 	// docker group is the only reason a compose command can talk to the daemon at all.
 	groupIDs, err := account.GroupIds()
 	if err != nil {
-		return "", nil, fmt.Errorf("hostexec: run as %q: groups: %w", name, err)
+		return "", nil, fmt.Errorf("hostexec: run as %q: groups: %w", runAs, err)
 	}
 	groups := make([]uint32, 0, len(groupIDs))
 	for _, groupID := range groupIDs {
 		parsed, err := strconv.ParseUint(groupID, 10, 32)
 		if err != nil {
-			return "", nil, fmt.Errorf("hostexec: run as %q: group %q: %w", name, groupID, err)
+			return "", nil, fmt.Errorf("hostexec: run as %q: group %q: %w", runAs, groupID, err)
 		}
 		groups = append(groups, uint32(parsed))
 	}
 	return account.HomeDir, &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid), Groups: groups}, nil
+}
+
+// currentIdentity is who the executor already is, with the HOME that goes with it. A command that
+// inherits the executor's identity must not be handed another user's HOME, or docker compose would
+// read a ~/.docker that belongs to somebody else.
+func currentIdentity() (string, *syscall.Credential, error) {
+	current, err := user.Current()
+	if err != nil {
+		return "", nil, fmt.Errorf("hostexec: current user: %w", err)
+	}
+	return current.HomeDir, nil, nil
 }
 
 // exitCodeOf is a process's exit code, or 0 when it never got one (it was killed by the timeout).

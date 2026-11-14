@@ -172,9 +172,16 @@ func TestUpdater_AppliesTheDigestAndRecreates(t *testing.T) {
 	if got := fixture.hits.Load(); got < 1 {
 		t.Errorf("health checks = %d, want at least 1", got)
 	}
+	// The executor is root and drops to the deploy user; a self update has already been re-executed as
+	// that user, so it inherits instead (see composeRunAs). Setting either to the wrong one is how the
+	// pull ended in "fork/exec /usr/bin/docker: operation not permitted".
+	wantRunAs := ""
+	if os.Geteuid() == 0 {
+		wantRunAs = deployUser
+	}
 	for index, call := range fixture.runner.calls {
-		if call.RunAs != deployUser {
-			t.Errorf("call %d runs as %q, want the deploy user", index, call.RunAs)
+		if call.RunAs != wantRunAs {
+			t.Errorf("call %d runs as %q, want %q", index, call.RunAs, wantRunAs)
 		}
 		if call.Dir != fixture.dir {
 			t.Errorf("call %d dir = %q, want %q", index, call.Dir, fixture.dir)

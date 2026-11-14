@@ -107,9 +107,11 @@ func runLogged(t *testing.T, command hostexec.Command, timeout time.Duration) (e
 }
 
 func TestRunner_GivesTheCommandTheMinimalEnvironment(t *testing.T) {
-	root, err := user.Lookup("root")
+	// A command with no RunAs inherits the executor's identity, so its HOME is the current user's. It
+	// used to be root's unconditionally, which handed a non-root process a ~/.docker it could not read.
+	current, err := user.Current()
 	if err != nil {
-		t.Fatalf("look up root: %v", err)
+		t.Fatalf("look up the current user: %v", err)
 	}
 
 	exitCode, output, err := runFor(t, hostexec.Command{Argv: []string{lookPath(t, "env")}}, 10*time.Second)
@@ -123,7 +125,7 @@ func TestRunner_GivesTheCommandTheMinimalEnvironment(t *testing.T) {
 	got := strings.Split(strings.TrimSpace(output), "\n")
 	sort.Strings(got)
 	want := []string{
-		"HOME=" + root.HomeDir,
+		"HOME=" + current.HomeDir,
 		"LANG=C.UTF-8",
 		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 	}
