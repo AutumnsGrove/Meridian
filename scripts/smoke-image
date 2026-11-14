@@ -102,7 +102,10 @@ if [ "$ready" != 1 ]; then
 fi
 
 status=$(curl -fsS http://127.0.0.1:8891/api/status)
-if ! printf '%s' "$status" | jq -e '.services | length == 4' >/dev/null; then
+# The response groups services under sections, so the count is over every section's services. It used
+# to be a top-level `.services`, and the stale path made this assertion fail on every run rather than
+# only when the fixture was wrong.
+if ! printf '%s' "$status" | jq -e '[.sections[].services[]] | length == 4' >/dev/null; then
 	printf 'smoke-image: /api/status does not describe the portable fixture:\n%s\n' "$status" >&2
 	exit 1
 fi
