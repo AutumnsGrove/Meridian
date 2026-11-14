@@ -35,6 +35,13 @@ work order are archived under [docs/history/](docs/history/PLAN.md) and are not 
   (decision #67).
 - **The host binary is standard library only**, takes argv arrays from the root-owned allowlist, and
   never invokes a shell (decisions #52, #62).
+- **Updating the host binary is a release, never an edit.** `meridian-host` changes reach the box only
+  through a `v*` tag, which builds both host binaries and `SHA256SUMS`; the box runs
+  `sudo deploy/install.sh --upgrade-host --version vX.Y.Z` from a checkout and the container never does
+  it for you (#67). Tag a commit that has a green `ci` run, because the release workflow refuses
+  anything else. **Upgrade the host before installing an allowlist that needs a new field**: the
+  allowlist is decoded strictly, so one unknown field refuses every action, not just the new target,
+  and `doctor` cannot catch it because it parses with the container's binary, not the executor's.
 - **Tests first, small commits, every commit green.** `scripts/check --fast` passes before each
   commit. Never skip, weaken or delete a failing test to get green.
 - **No dependencies off the allowlist** in [docs/STANDARDS.md](docs/STANDARDS.md) section 9 without a
