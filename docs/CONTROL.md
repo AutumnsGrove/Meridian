@@ -329,6 +329,14 @@ window, so the page cannot show a row the file is about to lose.
 
 ## Adding a target (checklist)
 
+0. **If the entry uses a field the installed `meridian-host` does not know, upgrade that binary
+   first.** The allowlist is decoded strictly, so one unknown field fails the whole file and every
+   action is refused, not just the new one — `targets.json: json: unknown field "image"`. This is
+   the one failure `meridian doctor` cannot catch: doctor parses the allowlist with the *container's*
+   binary, which ships with the newest code, so it can report a clean `control_ok` for a file the
+   executor on the same box rejects. Deploy the host binary, then the allowlist. A queue that keeps
+   retrying is how you find out: `meridian-control.path` fires on a non-empty queue, the executor
+   exits 1, and the request is still there, so it loops once a second until the file parses again.
 1. Add it to `/etc/meridian/targets.json` with an explicit `actions` list and a `criticality`.
 2. Add the target's unit to `/etc/meridian/observe.json` so `meridian-host probe` reports on it. The
    installer seeds that file with `meridian-control.path`; it does not overwrite an existing one.
