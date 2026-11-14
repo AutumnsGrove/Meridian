@@ -6,6 +6,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/fs"
 	"log"
@@ -28,8 +29,11 @@ const (
 	writeTimeout      = 15 * time.Second
 	idleTimeout       = 60 * time.Second
 	maxHeaderBytes    = 16 << 10
-	shutdownDrain     = 5 * time.Second
 )
+
+// shutdownDrain is how long Serve waits for in-flight requests. It is a variable only so a test can
+// shrink it; nothing in the binary writes to it.
+var shutdownDrain = 5 * time.Second
 
 // LoadStatus is how the last configuration load went. A rejected reload keeps the previous config
 // serving and sets Error, which the page shows as a banner (decision #41).
@@ -147,7 +151,19 @@ func Serve(ctx context.Context, deps Deps) error {
 	drain, cancel := context.WithTimeout(context.Background(), shutdownDrain)
 	defer cancel()
 	//nolint:contextcheck // see above: the drain deliberately starts from a fresh context
-	return server.Shutdown(drain)
+	if err := server.Shutdown(drain); err != nil {
+		// The deadline expiring means some peer never finished, usually one that dialled and stayed
+		// quiet: http.Server.Shutdown will not close a StateNew connection younger than five seconds
+		// (golang/go#22682), which is the whole budget. The process is going down either way, so
+		// saying so in the log is the honest report; returning it would make a clean restart exit
+		// non-zero and read like a crash (decision #102). Anything else is a real failure.
+		if errors.Is(err, context.DeadlineExceeded) {
+			deps.logger().Printf("shutdown: drain expired after %s with requests still open", shutdownDrain)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // healthz answers the container's healthcheck. It says only that the process can serve: no probing,
@@ -222,4 +238,13 @@ func (deps Deps) listen() string {
 // discardLogger is what a nil logger means: nobody asked to see the log.
 func discardLogger() *log.Logger {
 	return log.New(io.Discard, "", 0)
+}
+
+// logger is deps.Logger, or a discard logger when the caller passed none. RecoverPanic and AccessLog
+// take the nil and cope; a direct Printf does not.
+func (deps Deps) logger() *log.Logger {
+	if deps.Logger == nil {
+		return discardLogger()
+	}
+	return deps.Logger
 }
