@@ -192,6 +192,15 @@ stop, and that is what kept the box down after its weekly reboot on 2026-11-01 (
 config that fails validation on reload is rejected as a whole and the previous one stays live, with
 a banner on the page saying so.
 
+The file is a Docker **file** bind mount (`./config.yaml:/config/config.yaml:ro`), and that has one
+sharp edge: a write that replaces the file instead of editing it — `sed -i`, `install`, `mv` from a
+temp copy, most GUI editors — leaves the running container holding the **old inode**. The host path
+looks right, `--watch` sees nothing new, and the page silently keeps serving the previous config. Write
+in place (`tee`, `cp` over the path) or recreate the container (`docker compose up -d
+--force-recreate`) after a replacing write. Found on 2026-11-15 adding the Sepia tile: the file had
+the tile, `/api/status` still said thirteen services and the old `loaded_at`, and only the recreate
+made it fourteen.
+
 ### Portability check (a test, not a promise)
 
 One test loads `examples/` plus a fixture config describing services this homelab has never heard of
