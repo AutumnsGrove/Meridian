@@ -144,6 +144,30 @@ services:
       target: bwmon
       actions: [restart, stop, start, update]
 
+  - id: sepia
+    name: Sepia
+    section: everyday
+    icon: book-open
+    description: private review journal
+    url: https://lepotato.taild95077.ts.net:8893
+    probes:
+      health:
+        kind: http_json
+        # `/healthz` is two static fields by design and never waits on the agent loop or SQLite: a
+        # chat turn can take tens of seconds, and a probe that shared that path would flap the tile
+        # during normal use (Sepia docs/INSTALL.md, 2026-11-15).
+        url: http://localhost:8893/healthz
+        path: status
+        equals: ok
+      vitals:
+        # The build stamp, not a review count. Sepia's `/healthz` carries exactly status + version,
+        # and there is no reviews-this-month route; the count was dropped when it was asked for
+        # (settled 2026-11-15, Meridian #12).
+        - {kind: json_field, label: build, url: "http://localhost:8893/healthz", path: version}
+    control:
+      target: sepia
+      actions: [restart, stop, start, update]
+
   - id: outpost
     name: Outpost
     section: everyday

@@ -113,6 +113,22 @@
         "unit": "pixelsort-update.service"
       }
     },
+    "sepia": {
+      "kind": "compose",
+      "dir": "/home/autumn/Sepia",
+      "service": "sepia",
+      "actions": [
+        "start",
+        "stop",
+        "restart",
+        "update"
+      ],
+      "criticality": "low",
+      "update": {
+        "kind": "unit",
+        "unit": "sepia-update.service"
+      }
+    },
     "vaultwarden": {
       "kind": "container",
       "container": "vaultwarden",
