@@ -89,13 +89,19 @@
       }
     },
     "outpost": {
-      "kind": "systemd",
-      "unit": "outpost.service",
+      "kind": "compose",
+      "dir": "/home/autumn/outpost",
+      "service": "outpost",
       "actions": [
-        "restart"
+        "start",
+        "restart",
+        "update"
       ],
-      "criticality": "high",
-      "no_update_reason": "no updater: deploy is git pull + make build + systemctl restart"
+      "update": {
+        "kind": "unit",
+        "unit": "outpost-update.service"
+      },
+      "criticality": "high"
     },
     "pixelsort": {
       "kind": "compose",

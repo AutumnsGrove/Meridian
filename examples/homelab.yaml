@@ -188,12 +188,17 @@ services:
         # the daemon is healthy, nothing is rented, nothing is billing.
         - {kind: json_field, label: this session, url: "http://localhost:8896/api/status", path: sessionCost, prefix: "€", decimals: 3}
     control:
+      # A compose service since Outpost #39/#42: the box runs the published image and the host
+      # update watcher (deploy/watcher/update.sh) pins, pulls, recreates, health-checks and rolls
+      # back. Bare start of the unit is a complete update, like Warbler's.
+      #
+      # No `stop`, deliberately. Stopping the daemon while a Minecraft VPS is rented leaves it
+      # billing with nobody to reach the idle timeout — the one failure this service exists to
+      # prevent — and, unlike the other services here, `docker compose stop` is a footgun that
+      # cannot be undone from this tile. Starting a session is still `outpost start` from a shell;
+      # the control plane has no HTTP target kind (Meridian #19 has the three options).
       target: outpost
-      # restart only, deliberately. Stopping the daemon while a Minecraft VPS is rented would
-      # leave it billing with nobody to reach the idle timeout — the one failure this service
-      # exists to prevent. Starting a session is `outpost start` from a shell; the control
-      # plane has no HTTP target kind (Meridian #19 has the three options).
-      actions: [restart]
+      actions: [start, restart, update]
 
   - id: searxng
     name: SearXNG
