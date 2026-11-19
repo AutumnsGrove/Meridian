@@ -24,6 +24,7 @@ Re-verify before implementing a phase — these are the facts the config depends
 | tailscaled | `tailscale status --json` on the host, copied into `status/host.json` | `Self.Online`, `Self.ExitNodeOption`, `Peer[]` | Tailscale tile: exit-node state + peers online |
 | Pixelsort † | `GET http://localhost:8895/healthz` | `{"status":"ok","version":"r…"}` | health + build vital |
 | Pixelsort † | `GET /api/usage` | `{"used_bytes","budget_bytes","runs",…}` | vitals: disk as `used_bytes / budget_bytes`, and `runs` as the Archive count |
+| Harbor § | `GET http://localhost:8897/healthz` | `{"status":"ok","version":"r52.13940dc"}` | health + build vital. Exempt from Harbor's identity lock only when the Tailscale header is absent; the probe host must be in `HARBOR_ALLOWED_HOSTS` |
 | Sepia ‡ | `GET http://localhost:8893/healthz` | `{"status":"ok","version":"r116.254c9ae"}` | health + build vital. Two static fields, never the agent loop or SQLite: a chat turn takes tens of seconds, so anything that waited on it would flap the tile |
 
 † Pixelsort was added later than the rest of this table, so its rows are the one exception to the
@@ -38,6 +39,19 @@ vital: the issue that reserved this tile asked for one, but `/healthz` carries e
 `version`, and `GET /api/entries` has no month filter, so the settled answer is the build stamp every
 sibling uses. Adding the count means a new route with its own contract, tests and limits row, not a
 config change.
+
+§ Harbor's rows were checked against the live service on **2026-11-18**, the day it deployed
+(`curl -s localhost:8897/healthz` → `r52.13940dc`). Three things to know before wiring anything else:
+
+- **Two port names, on purpose.** `.env` carries `HARBOR_HOST_PORT=8897` (what `tailscale serve`
+  proxies); the container always listens on 8080 (`HARBOR_PORT`), pinned by compose's `environment`.
+  Setting `HARBOR_PORT=8897` in `.env` binds the wrong port, and the tile then probes a dead one.
+- **`127.0.0.1` is mandatory in `HARBOR_ALLOWED_HOSTS` in docker mode.** The image's own HEALTHCHECK
+  probes it, so a config listing only the `ts.net` name boots fine and then answers 421 to every
+  probe — Docker marks a healthy image unhealthy and the update watcher rolls it back.
+- **The vital will move.** `saved_this_week` is the field that answers "am I using it", but it arrives
+  with Harbor's phase 2. The tile shows the build stamp until then rather than a permanently empty
+  vital.
 
 Outpost is deliberately absent: it is not deployed, and a probe for a service that is not installed
 is a permanently red tile (Meridian #19). Its reserved shape is in that issue, not here.
