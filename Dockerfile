@@ -7,7 +7,7 @@
 # Base images are pinned by digest and kept fresh by Dependabot. When bumping one, take the digest
 # from the registry's index manifest, not from a tag.
 
-FROM node:26-bookworm-slim@sha256:28147155d47dc31abe0a46e0d12b59b2fb3d0a2dcc5dc65fce76a074180b16fe AS web
+FROM node:26-bookworm-slim@sha256:0042e17d232a87a2cd485be1da7900fca4d10a4ad11b29e9285da1d2e54798c9 AS web
 
 # The version CI and the lockfile were written with. pnpm refuses a different major silently, so it is
 # named here rather than left to corepack's default.
@@ -21,7 +21,7 @@ RUN pnpm build
 
 # $BUILDPLATFORM runs the compiler natively and cross-compiles for $TARGETARCH, so the arm64 image
 # costs one compile instead of an emulated one.
-FROM --platform=$BUILDPLATFORM golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.4-bookworm@sha256:ce59b41415e2524ae99926fe1f37ce48ba8c194dcbd2a56a65436cdcefa2bd34 AS build
 
 WORKDIR /src
 
